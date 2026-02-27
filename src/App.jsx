@@ -1,13 +1,35 @@
-import React from "react";
-import DailyCostApp from "./DailyCostApp";
-import "./styles.css";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import LoginPage from "./Login";
+import ProtectedRoute from "./ProtectedRoute";
+import UserPage from "./UserPage";
+import DailyCostApp from "./DailyCostApp"; // adjust import path if needed
 
-function App() {
+export default function App() {
   return (
-    <div className="app-container">
-      <DailyCostApp />
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LoginPage />} />
+
+        <Route
+          path="/app"
+          element={
+            <ProtectedRoute>
+              <DailyCostApp />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/user"
+          element={
+            <ProtectedRoute>
+              <UserPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
-
-export default App;
