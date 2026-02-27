@@ -90,15 +90,19 @@ app.post("/api/costs", async (req, res) => {
 
 app.get("/api/costs/available-months", async (req, res) => {
   try {
-    const [rows] = await pool.query(`
+    const [rows] = await pool.query(
+      `
       SELECT
         YEAR(cost_date) AS year,
         MONTH(cost_date) AS month,
         COUNT(*) AS count
       FROM daily_costs
+      WHERE user_id = ?
       GROUP BY YEAR(cost_date), MONTH(cost_date)
       ORDER BY year DESC, month DESC
-    `);
+    `,
+      [req.user.id],
+    );
 
     res.json({ ok: true, months: rows });
   } catch (e) {
@@ -135,6 +139,65 @@ app.get("/api/costs", async (req, res) => {
     );
 
     res.json({ ok: true, items: rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// update a single cost (only allowed on own records)
+app.patch("/api/costs/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const updateSchema = z.object({
+    type: z.string().min(1).max(50).optional(),
+    price: z.number().nonnegative().optional(),
+    note: z.string().max(255).optional().nullable(),
+  });
+  const parsed = updateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: parsed.error.flatten() });
+  }
+
+  const { type, price, note } = parsed.data;
+  try {
+    const userId = req.user.id;
+    // build dynamic SET clause
+    const fields = [];
+    const params = [];
+    if (type !== undefined) {
+      fields.push("type = ?");
+      params.push(type);
+    }
+    if (price !== undefined) {
+      fields.push("price = ?");
+      params.push(price);
+    }
+    if (note !== undefined) {
+      fields.push("note = ?");
+      params.push(note);
+    }
+    if (fields.length === 0) {
+      return res.json({ ok: true });
+    }
+
+    params.push(userId, id);
+    const sql = `UPDATE daily_costs SET ${fields.join(", ")} WHERE user_id = ? AND id = ?`;
+    const [result] = await pool.execute(sql, params);
+    res.json({ ok: true, affected: result.affectedRows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// delete cost
+app.delete("/api/costs/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const userId = req.user.id;
+    const [result] = await pool.execute(
+      `DELETE FROM daily_costs WHERE user_id = ? AND id = ?`,
+      [userId, id],
+    );
+    res.json({ ok: true, deleted: result.affectedRows });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

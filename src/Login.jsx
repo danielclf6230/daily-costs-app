@@ -26,11 +26,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "80px auto", padding: 16 }}>
+    <div className="container login-page">
       <h1>Daily Cost App</h1>
-      <p>Login with your Couple App user</p>
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
+      <form onSubmit={onSubmit} className="login-form">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -45,7 +44,7 @@ export default function LoginPage() {
         <button disabled={loading || !name || !password}>
           {loading ? "Logging in..." : "Login"}
         </button>
-        {err && <div style={{ color: "crimson" }}>{err}</div>}
+        {err && <div className="error">{err}</div>}
       </form>
     </div>
   );

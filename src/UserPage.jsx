@@ -6,16 +6,9 @@ export default function UserPage() {
   const nav = useNavigate();
 
   return (
-    <div style={{ maxWidth: 640, margin: "40px auto", padding: 16 }}>
+    <div className="container user-page">
       <h2>User</h2>
-      <pre
-        style={{
-          background: "#111",
-          color: "#0f0",
-          padding: 12,
-          borderRadius: 8,
-        }}
-      >
+      <pre className="user-info">
         {JSON.stringify(
           {
             id: user?.id,
@@ -28,7 +21,7 @@ export default function UserPage() {
         )}
       </pre>
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="button-row">
         <button onClick={() => nav("/app")}>Back to App</button>
         <button
           onClick={() => {

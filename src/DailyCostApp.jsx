@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createCost, getAvailableMonths, getCostsByMonth } from "./api";
+import { useNavigate } from "react-router-dom";
+import {
+  createCost,
+  getAvailableMonths,
+  getCostsByMonth,
+  updateCost,
+  deleteCost,
+} from "./api";
+import { logout } from "./auth";
 
 function yyyyMmDd(d = new Date()) {
   const y = d.getFullYear();
@@ -9,7 +17,20 @@ function yyyyMmDd(d = new Date()) {
 }
 
 export default function DailyCostApp() {
+  const nav = useNavigate();
   const [tab, setTab] = useState("today");
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({
+    type: "",
+    price: "",
+    note: "",
+  });
+  const [savingEditId, setSavingEditId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteModalId, setDeleteModalId] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Today
   const [costDate, setCostDate] = useState(yyyyMmDd());
@@ -27,9 +48,10 @@ export default function DailyCostApp() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const monthOptions = useMemo(() => {
+    // months come from server already scoped to the authenticated user via token
     return months.map((m) => {
       const key = `${m.year}-${m.month}`;
-      const label = `${m.year}-${String(m.month).padStart(2, "0")} (${m.count})`;
+      const label = `${m.year}-${String(m.month).padStart(2, "0")}`; // remove count display
       return { key, label, year: m.year, month: m.month };
     });
   }, [months]);
@@ -71,9 +93,50 @@ export default function DailyCostApp() {
     })();
   }, [tab, selectedKey]);
 
+  async function startEdit(item) {
+    setEditingId(item.id);
+    setEditValues({
+      type: item.type,
+      price: String(item.price),
+      note: item.note || "",
+    });
+  }
+
+  async function saveEdit(id) {
+    setSavingEditId(id);
+    try {
+      await updateCost(id, {
+        type: editValues.type,
+        price: Number(editValues.price),
+        note: editValues.note || null,
+      });
+      // re-fetch current month
+      try {
+        const [year, month] = selectedKey.split("-").map(Number);
+        const rows = await getCostsByMonth(year, month);
+        setItems(rows);
+      } catch (e) {
+        setItems((prev) =>
+          prev.map((it) =>
+            it.id === id
+              ? { ...it, ...editValues, price: Number(editValues.price) }
+              : it,
+          ),
+        );
+      }
+      setEditingId(null);
+      setSuccessMessage("Data updated");
+      setSuccessModalOpen(true);
+      setTimeout(() => setSuccessModalOpen(false), 2000);
+    } catch (e) {
+      console.error("update failed", e);
+    } finally {
+      setSavingEditId(null);
+    }
+  }
+
   async function onSave(e) {
     e.preventDefault();
-    setSaveMsg("");
 
     const p = Number(price);
     if (!type.trim()) return setSaveMsg("Type is required.");
@@ -87,32 +150,84 @@ export default function DailyCostApp() {
         price: p,
         note: note.trim() ? note.trim() : null,
       });
-      setSaveMsg("Saved ✔️");
       setType("");
       setPrice("");
       setNote("");
+      setSuccessMessage("Cost added");
+      setSuccessModalOpen(true);
+      setTimeout(() => setSuccessModalOpen(false), 2000);
     } catch (e) {
       setSaveMsg(`Save failed: ${String(e?.message || e)}`);
     } finally {
       setSaving(false);
     }
   }
+  function confirmDelete(id) {
+    setDeleteModalId(id);
+    setDeleteModalOpen(true);
+  }
+
+  // perform deletion after confirmation
+  async function performDelete(id) {
+    setDeletingId(id);
+    try {
+      await deleteCost(id);
+      setItems((prev) => prev.filter((it) => it.id !== id));
+      if (editingId === id) {
+        setEditingId(null);
+      }
+      setSuccessMessage("Item deleted");
+      setSuccessModalOpen(true);
+      setTimeout(() => setSuccessModalOpen(false), 2000);
+    } catch (e) {
+      console.error("delete failed", e);
+    } finally {
+      setDeletingId(null);
+      setDeleteModalOpen(false);
+      setDeleteModalId(null);
+    }
+  }
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
-      <h2>Daily Cost Record</h2>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setTab("today")} disabled={tab === "today"}>
-          Today
-        </button>
-        <button onClick={() => setTab("history")} disabled={tab === "history"}>
-          History
+    <div className="container">
+      <div className="page-header">
+        <button
+          type="button"
+          className="logout-button"
+          onClick={() => {
+            logout();
+            nav("/", { replace: true });
+          }}
+        >
+          Logout
         </button>
       </div>
 
+      <h2>Daily Cost Record</h2>
+
+      <nav className="tab-nav" aria-label="Cost sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "today"}
+          className={`tab-link ${tab === "today" ? "active" : ""}`}
+          onClick={() => setTab("today")}
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "history"}
+          className={`tab-link ${tab === "history" ? "active" : ""}`}
+          onClick={() => setTab("history")}
+        >
+          History
+        </button>
+      </nav>
+
       {tab === "today" && (
-        <form onSubmit={onSave} style={{ display: "grid", gap: 12 }}>
+        <form onSubmit={onSave} className="form-grid">
           <label>
             Date
             <input
@@ -125,6 +240,7 @@ export default function DailyCostApp() {
           <label>
             Type
             <input
+              required
               value={type}
               onChange={(e) => setType(e.target.value)}
               placeholder="Food, Transport..."
@@ -134,6 +250,7 @@ export default function DailyCostApp() {
           <label>
             Price
             <input
+              required
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               inputMode="decimal"
@@ -154,12 +271,56 @@ export default function DailyCostApp() {
             {saving ? "Saving..." : "Save"}
           </button>
 
-          {saveMsg && <div>{saveMsg}</div>}
+          {saveMsg && <div className="message">{saveMsg}</div>}
         </form>
+      )}
+      {/* Success modal */}
+      {successModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal success-modal">
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "1.2em",
+                color: "#28a745",
+              }}
+            >
+              ✓ {successMessage}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete confirmation modal */}
+      {deleteModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Confirm delete</h3>
+            <p>Delete this record? This action cannot be undone.</p>
+            <div className="modal-actions">
+              <button
+                className="modal-cancel-btn"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteModalId(null);
+                }}
+                disabled={deletingId !== null}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-delete-btn"
+                onClick={() => performDelete(deleteModalId)}
+                disabled={deletingId !== null}
+              >
+                {deletingId === deleteModalId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {tab === "history" && (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className="history-container">
           <label>
             Month
             <select
@@ -175,38 +336,181 @@ export default function DailyCostApp() {
           </label>
 
           {loadingHistory && <div>Loading...</div>}
-          {historyErr && <div style={{ color: "crimson" }}>{historyErr}</div>}
+          {historyErr && <div className="error">{historyErr}</div>}
 
           {!loadingHistory && !historyErr && (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div className="history-items-grid">
               {items.length === 0 ? (
                 <div>No records.</div>
               ) : (
-                items.map((it) => (
-                  <div
-                    key={it.id}
-                    style={{
-                      padding: 12,
-                      border: "1px solid #ddd",
-                      borderRadius: 8,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                    }}
-                  >
-                    <div>
-                      <div>
-                        <b>{it.cost_date}</b> — {it.type}
+                (() => {
+                  const total = items.reduce(
+                    (sum, it) => sum + Number(it.price),
+                    0,
+                  );
+                  return (
+                    <div
+                      className={`history-list ${editingId ? "show-delete" : ""}`}
+                    >
+                      <div className="history-header">
+                        <div>Date</div>
+                        <div>Type</div>
+                        <div>Note</div>
+                        <div className="price-amount">Price</div>
+                        <div>Actions</div>
+                        {editingId ? <div>Delete</div> : null}
                       </div>
-                      {it.note ? (
-                        <div style={{ opacity: 0.8 }}>{it.note}</div>
-                      ) : null}
+                      {items.map((it) => {
+                        const onlyDate = it.cost_date.split("T")[0];
+                        const isEditing = editingId === it.id;
+                        return (
+                          <div key={it.id} className="history-row">
+                            <div>{onlyDate}</div>
+                            <div>
+                              {isEditing ? (
+                                <input
+                                  value={editValues.type}
+                                  onChange={(e) =>
+                                    setEditValues((v) => ({
+                                      ...v,
+                                      type: e.target.value,
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                it.type
+                              )}
+                            </div>
+                            <div>
+                              {isEditing ? (
+                                <input
+                                  value={editValues.note}
+                                  onChange={(e) =>
+                                    setEditValues((v) => ({
+                                      ...v,
+                                      note: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="note"
+                                />
+                              ) : it.note ? (
+                                <div className="note-text">{it.note}</div>
+                              ) : null}
+                            </div>
+                            <div className="price-amount">
+                              {isEditing ? (
+                                <input
+                                  value={editValues.price}
+                                  onChange={(e) =>
+                                    setEditValues((v) => ({
+                                      ...v,
+                                      price: e.target.value,
+                                    }))
+                                  }
+                                  inputMode="decimal"
+                                />
+                              ) : (
+                                `$${Number(it.price).toFixed(2)}`
+                              )}
+                            </div>
+                            <div className="actions">
+                              <button
+                                className={`edit-btn ${isEditing ? "save" : ""}`}
+                                onClick={() =>
+                                  isEditing ? saveEdit(it.id) : startEdit(it)
+                                }
+                                disabled={
+                                  savingEditId === it.id || deletingId === it.id
+                                }
+                                aria-label={isEditing ? "Save" : "Edit"}
+                              >
+                                {savingEditId === it.id ? (
+                                  "Saving..."
+                                ) : isEditing ? (
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden
+                                  >
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden
+                                  >
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                            {editingId ? (
+                              <div className="delete-col">
+                                {isEditing ? (
+                                  <button
+                                    className="delete-btn"
+                                    onClick={() => confirmDelete(it.id)}
+                                    disabled={
+                                      deletingId === it.id ||
+                                      savingEditId === it.id
+                                    }
+                                    aria-label="Delete"
+                                  >
+                                    {deletingId === it.id ? (
+                                      "..."
+                                    ) : (
+                                      <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden
+                                      >
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                        <path d="M10 11v6" />
+                                        <path d="M14 11v6" />
+                                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                                      </svg>
+                                    )}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                      <div className="history-footer">
+                        <div className="total-row">
+                          <div style={{ fontWeight: 700, marginRight: 8 }}>
+                            Total
+                          </div>
+                          <div className="price-amount">
+                            ${total.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontWeight: 700 }}>
-                      ${Number(it.price).toFixed(2)}
-                    </div>
-                  </div>
-                ))
+                  );
+                })()
               )}
             </div>
           )}

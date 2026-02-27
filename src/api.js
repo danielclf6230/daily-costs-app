@@ -58,3 +58,18 @@ export async function getCostsByMonth(year, month) {
   if (!data.ok) throw new Error(data?.error || "Load costs failed");
   return data.items;
 }
+
+export async function updateCost(id, payload) {
+  const data = await request(`/api/costs/${id}`, {
+    method: "PATCH",
+    body: payload,
+  });
+  if (!data.ok) throw new Error(data?.error || "Update failed");
+  return data;
+}
+
+export async function deleteCost(id) {
+  const data = await request(`/api/costs/${id}`, { method: "DELETE" });
+  if (!data.ok) throw new Error(data?.error || "Delete failed");
+  return data;
+}

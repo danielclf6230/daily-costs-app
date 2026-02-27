@@ -1,7 +1,10 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family:
+    "Segoe UI", "Poppins", "Inter", system-ui, Avenir, Helvetica, Arial,
+    sans-serif;
+  line-height: 1.6;
   font-weight: 400;
+  letter-spacing: 0.3px;
 
   color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
@@ -11,6 +14,58 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* global responsive container */
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.page-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.logout-button {
+  width: auto;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+/* form elements stretch on small screens */
+input,
+select,
+button,
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #555;
+  padding: 0.6em 0.8em;
+  background-color: #333;
+  color: #eee;
+  transition: all 0.3s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+@media (min-width: 600px) {
+  input,
+  select,
+  button,
+  textarea {
+    width: auto;
+  }
 }
 
 a {
@@ -24,15 +79,27 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
+  /* let pages stack normally; login page handles its own centering */
+}
+
+/* center login page vertically */
+.login-page {
+  margin-top: 5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100vh - 5rem);
 }
 
 h1 {
-  font-size: 2em;
+  font-size: 2.5em;
   line-height: 1.1;
+  font-weight: 700;
+  background: linear-gradient(135deg, #646cff, #28a745);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 button {
@@ -40,20 +107,22 @@ button {
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
   font-size: 1em;
-  font-weight: 500;
+  font-weight: 600;
   font-family: inherit;
   background-color: #1a1a1a;
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 button:hover {
   border-color: #646cff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.2);
 }
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
-
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -66,4 +135,342 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* page-specific helpers */
+
+/* reuse container for inner pages too */
+.user-page {
+  margin: 40px auto;
+}
+
+/* tabs and history styling */
+.tab-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  margin: 0 auto 1rem;
+  padding: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #3d3d3d;
+  border-radius: 999px;
+  background: #181818;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.tab-link {
+  width: auto;
+  min-width: 88px;
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  background: transparent;
+  color: #a8afc3;
+  box-shadow: none;
+  transform: none;
+}
+
+.tab-link:hover {
+  border-color: transparent;
+  color: #f3f6ff;
+  background: rgba(100, 108, 255, 0.14);
+  box-shadow: none;
+  transform: none;
+}
+
+.tab-link.active {
+  background: linear-gradient(135deg, #646cff, #4f57d9);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(100, 108, 255, 0.28);
+}
+
+.history-item {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-item > div {
+  flex: 1 1 auto;
+}
+
+/* form label layout */
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.error {
+  color: crimson;
+}
+
+/* history wrapper grid spacing */
+.history-container {
+  display: grid;
+  gap: 12px;
+}
+
+.history-items-grid {
+  display: grid;
+  gap: 8px;
+}
+
+/* utility grids */
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+.login-form {
+  display: grid;
+  gap: 10px;
+}
+
+.price-amount {
+  font-weight: 700;
+}
+
+.user-info {
+  background: #111;
+  color: #0f0;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.note-text {
+  opacity: 0.8;
+}
+
+/* history list styling (replaces previous table) */
+.history-list {
+  width: 100%;
+  border: 1px solid #444;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  background: #222;
+  color: #eee;
+}
+
+.history-header,
+.history-footer,
+.history-row {
+  display: grid;
+  grid-template-columns: repeat(
+    5,
+    1fr
+  ); /* Date | Type | Note | Price | Actions (default - 5 columns) */
+  padding: 8px 12px;
+  align-items: center;
+  gap: 12px;
+}
+
+/* when editing is active, add Delete column */
+.history-list.show-delete .history-header,
+.history-list.show-delete .history-row {
+  grid-template-columns: repeat(5, 1fr) 60px; /* Date | Type | Note | Price | Actions | Delete */
+}
+
+/* center all header and row cells in history */
+.history-header div,
+.history-row div,
+.history-footer div {
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center; /* center the action buttons */
+}
+
+.delete-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* footer: make total-row span full width and align right */
+.history-footer .total-row {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end; /* only the total is on the right */
+  gap: 12px;
+  align-items: center;
+}
+
+.modal.success-modal {
+  background: #1a1a1a;
+  border: 2px solid #28a745;
+  border-radius: 8px;
+  padding: 2rem 1.5rem;
+  width: auto;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(40, 167, 69, 0.3);
+}
+
+.modal.success-modal {
+  background: #1a1a1a;
+  border: 2px solid #28a745;
+  border-radius: 8px;
+  padding: 2rem 1.5rem;
+  width: auto;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(40, 167, 69, 0.3);
+}
+
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: crimson;
+  cursor: pointer;
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+.delete-btn:hover {
+  color: #ff4d4d;
+}
+
+.edit-btn {
+  background: #4a90e2;
+  border: none;
+  color: white;
+  padding: 0.5em 0.7em;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-btn.save {
+  background: #28a745;
+}
+
+.edit-btn:disabled,
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.modal {
+  background: #121212;
+  color: #eee;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  width: 320px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+.modal-delete-btn {
+  background: crimson;
+  color: white;
+  border: none;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.modal-cancel-btn {
+  background: #333;
+  color: #eee;
+  border: none;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.history-header {
+  background: #333;
+  font-weight: 600;
+}
+
+.history-row:nth-child(even) {
+  background: #2a2a2a;
+}
+
+.history-row:nth-child(odd) {
+  background: #262626;
+}
+
+.history-footer {
+  background: #333;
+  font-weight: 600;
+}
+
+.price-amount {
+  text-align: center;
+}
+
+.history-row input {
+  width: 100%;
+  padding: 4px 6px;
+  background: #444;
+  color: #eee;
+  border: 1px solid #666;
+  border-radius: 4px;
+}
+
+/* outer frame around the whole application */
+.outer-frame {
+  min-height: 100vh;
+  padding: 1rem;
+  background: var(--frame-bg, #111);
+  box-sizing: border-box;
+}
+
+.message {
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+/* adjust h2 for container context */
+h2 {
+  margin-top: 0;
+  font-size: 2.2em;
+  background: linear-gradient(135deg, #646cff, #28a745);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: none;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-align: center;
+  margin-bottom: 1.5rem;
 }
