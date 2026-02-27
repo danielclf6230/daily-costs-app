@@ -30,6 +30,7 @@ export default function DailyCostApp() {
   const [deletingId, setDeletingId] = useState(null);
   const [deleteModalId, setDeleteModalId] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [expandedHistoryIds, setExpandedHistoryIds] = useState({});
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -187,6 +188,13 @@ export default function DailyCostApp() {
       setDeleteModalOpen(false);
       setDeleteModalId(null);
     }
+  }
+
+  function toggleHistoryRow(id) {
+    setExpandedHistoryIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   }
 
   return (
@@ -379,10 +387,40 @@ export default function DailyCostApp() {
                       {items.map((it) => {
                         const onlyDate = it.cost_date.split("T")[0];
                         const isEditing = editingId === it.id;
+                        const isExpanded = Boolean(expandedHistoryIds[it.id]) || isEditing;
                         return (
-                          <div key={it.id} className="history-row">
-                            <div>{onlyDate}</div>
-                            <div>
+                          <div
+                            key={it.id}
+                            className={`history-row ${isExpanded ? "mobile-expanded" : "mobile-collapsed"}`}
+                          >
+                            <button
+                              type="button"
+                              className="mobile-history-summary"
+                              onClick={() => toggleHistoryRow(it.id)}
+                              aria-expanded={isExpanded}
+                            >
+                              <span className="mobile-summary-date">{onlyDate}</span>
+                              <span className="mobile-summary-type">{it.type}</span>
+                              <span className="mobile-summary-price">
+                                ${Number(it.price).toFixed(2)}
+                              </span>
+                              <span className="mobile-summary-arrow" aria-hidden>
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div className="history-cell-date">{onlyDate}</div>
+                            <div className="history-cell-type">
                               {isEditing ? (
                                 <input
                                   value={editValues.type}
@@ -397,7 +435,7 @@ export default function DailyCostApp() {
                                 it.type
                               )}
                             </div>
-                            <div>
+                            <div className="history-cell-note">
                               {isEditing ? (
                                 <input
                                   value={editValues.note}
@@ -413,7 +451,7 @@ export default function DailyCostApp() {
                                 <div className="note-text">{it.note}</div>
                               ) : null}
                             </div>
-                            <div className="price-amount">
+                            <div className="history-cell-price price-amount">
                               {isEditing ? (
                                 <input
                                   value={editValues.price}
@@ -429,8 +467,9 @@ export default function DailyCostApp() {
                                 `$${Number(it.price).toFixed(2)}`
                               )}
                             </div>
-                            <div className="actions">
+                            <div className="history-cell-actions actions">
                               <button
+                                type="button"
                                 className={`edit-btn ${isEditing ? "save" : ""}`}
                                 onClick={() =>
                                   isEditing ? saveEdit(it.id) : startEdit(it)
@@ -475,9 +514,10 @@ export default function DailyCostApp() {
                               </button>
                             </div>
                             {editingId ? (
-                              <div className="delete-col">
+                              <div className="history-cell-delete delete-col">
                                 {isEditing ? (
                                   <button
+                                    type="button"
                                     className="delete-btn"
                                     onClick={() => confirmDelete(it.id)}
                                     disabled={

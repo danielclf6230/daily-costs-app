@@ -40,8 +40,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: nowrap;
   gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.title-row h2 {
+  white-space: nowrap;
+  font-size: clamp(1.35rem, 7vw, 2.2rem);
 }
 
 .user-avatar-chip {
@@ -283,6 +289,15 @@ label {
   display: grid;
   gap: 12px;
 }
+
+.form-grid label,
+.form-grid input,
+.form-grid select,
+.form-grid button {
+  width: 100%;
+  min-width: 0;
+}
+
 .login-form {
   display: grid;
   gap: 12px;
@@ -292,6 +307,8 @@ label {
 .login-form input,
 .login-form button {
   width: 100%;
+  font-size: 1.1rem;
+  padding: 0.85rem 1rem;
 }
 
 .price-amount {
@@ -364,6 +381,10 @@ label {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.mobile-history-summary {
+  display: none;
 }
 
 /* footer: make total-row span full width and align right */
@@ -532,4 +553,148 @@ h2 {
   letter-spacing: 0.5px;
   text-align: center;
   margin-bottom: 0;
+}
+
+@media (max-width: 599px) {
+  .page-header {
+    margin-bottom: 1.5rem;
+  }
+
+  .history-header {
+    display: none;
+  }
+
+  .history-row,
+  .history-list.show-delete .history-row {
+    display: block;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-top: 1px solid #3a3a3a;
+  }
+
+  .mobile-history-summary {
+    display: grid;
+    grid-template-columns: minmax(82px, auto) minmax(0, 1fr) auto 24px;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+    text-align: left;
+  }
+
+  .mobile-summary-date,
+  .mobile-summary-type,
+  .mobile-summary-price {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-summary-date {
+    font-size: 0.82rem;
+    color: #b6bdd4;
+  }
+
+  .mobile-summary-type {
+    font-weight: 600;
+  }
+
+  .mobile-summary-price {
+    justify-self: end;
+    font-weight: 700;
+  }
+
+  .mobile-summary-arrow {
+    display: flex;
+    justify-content: flex-end;
+    color: #b6bdd4;
+    transition: transform 0.2s ease;
+  }
+
+  .history-row.mobile-expanded .mobile-summary-arrow {
+    transform: rotate(180deg);
+  }
+
+  .history-row > div {
+    display: grid;
+    gap: 0.25rem;
+    text-align: left;
+    margin-top: 0.75rem;
+  }
+
+  .history-row > div:empty {
+    display: none;
+  }
+
+  .history-cell-date::before,
+  .history-cell-type::before,
+  .history-cell-note::before,
+  .history-cell-price::before,
+  .history-cell-actions::before,
+  .history-cell-delete::before {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #9aa3bf;
+  }
+
+  .history-cell-date::before {
+    content: "Date";
+  }
+
+  .history-cell-type::before {
+    content: "Type";
+  }
+
+  .history-cell-note::before {
+    content: "Note";
+  }
+
+  .history-cell-price::before {
+    content: "Price";
+  }
+
+  .history-cell-actions::before {
+    content: "Action";
+  }
+
+  .history-cell-delete::before {
+    content: "Delete";
+  }
+
+  .history-row.mobile-collapsed > div,
+  .history-row.mobile-collapsed .history-cell-note,
+  .history-row.mobile-collapsed .history-cell-actions,
+  .history-row.mobile-collapsed .history-cell-delete {
+    display: none;
+  }
+
+  .history-row input {
+    min-width: 0;
+    padding: 0.55rem 0.7rem;
+  }
+
+  .price-amount {
+    text-align: left;
+  }
+
+  .actions,
+  .delete-col {
+    justify-content: flex-start;
+  }
+
+  .history-footer,
+  .history-list.show-delete .history-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .history-footer .total-row {
+    justify-content: space-between;
+  }
 }
