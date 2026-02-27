@@ -255,9 +255,14 @@ export default function DailyCostApp() {
           <label>
             Date
             <input
-              type="date"
+              type="text"
               value={costDate}
               onChange={(e) => setCostDate(e.target.value)}
+              inputMode="numeric"
+              placeholder="YYYY-MM-DD"
+              maxLength={10}
+              pattern="\d{4}-\d{2}-\d{2}"
+              title="Use YYYY-MM-DD format"
             />
           </label>
 
