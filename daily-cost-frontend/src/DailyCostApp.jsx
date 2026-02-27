@@ -7,7 +7,7 @@ import {
   updateCost,
   deleteCost,
 } from "./api";
-import { logout } from "./auth";
+import { getUser, logout } from "./auth";
 
 function yyyyMmDd(d = new Date()) {
   const y = d.getFullYear();
@@ -18,6 +18,7 @@ function yyyyMmDd(d = new Date()) {
 
 export default function DailyCostApp() {
   const nav = useNavigate();
+  const user = getUser();
   const [tab, setTab] = useState("today");
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({
@@ -203,7 +204,22 @@ export default function DailyCostApp() {
         </button>
       </div>
 
-      <h2>Daily Cost Record</h2>
+      <div className="title-row">
+        <h2>Daily Cost Record</h2>
+        <div className="user-avatar-chip" aria-label={`${user?.name || "User"} avatar`}>
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={`${user?.name || "User"} avatar`}
+              className="user-avatar-image"
+            />
+          ) : (
+            <span className="user-avatar-fallback">
+              {(user?.name || "U").trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+      </div>
 
       <nav className="tab-nav" aria-label="Cost sections">
         <button
