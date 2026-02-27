@@ -298,6 +298,17 @@ label {
   min-width: 0;
 }
 
+.form-grid label {
+  font-size: 1.15rem;
+  gap: 0.45rem;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid button {
+  font-size: 1.08rem;
+}
+
 .login-form {
   display: grid;
   gap: 12px;
@@ -356,6 +367,12 @@ label {
   padding: 8px 12px;
   align-items: center;
   gap: 12px;
+}
+
+.history-header,
+.history-row,
+.history-footer {
+  font-size: 1.05rem;
 }
 
 /* when editing is active, add Delete column */
@@ -521,6 +538,7 @@ label {
 .history-row input {
   width: 100%;
   padding: 4px 6px;
+  font-size: 1rem;
   background: #444;
   color: #eee;
   border: 1px solid #666;
@@ -590,6 +608,7 @@ h2 {
   .mobile-summary-type,
   .mobile-summary-price {
     min-width: 0;
+    font-size: 0.98rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
