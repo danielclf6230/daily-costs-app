@@ -13,17 +13,23 @@ app.use(express.json());
 const allowedOrigins = [
   process.env.FRONTEND_ORIGIN,
   "http://localhost:5173",
+  "https://daily-costs-6u5rawl-danielcf6230s-projects.vercel.app",
+  "https://daily-costs-app.vercel.app",
 ].filter(Boolean);
 
 app.use(
   cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error(`CORS blocked for origin: ${origin}`));
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        console.log("Blocked by CORS:", origin);
+        return callback(new Error("Not allowed by CORS"));
+      }
     },
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   }),
 );
 
