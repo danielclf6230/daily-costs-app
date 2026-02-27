@@ -268,7 +268,7 @@ export default function DailyCostApp() {
           </label>
 
           <button type="submit" disabled={saving}>
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Adding..." : "Add"}
           </button>
 
           {saveMsg && <div className="message">{saveMsg}</div>}
