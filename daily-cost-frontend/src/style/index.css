@@ -318,43 +318,54 @@ label {
   font-size: 1.08rem;
 }
 
-.date-input {
-  min-height: 44px;
-  width: 100%;
-  padding-right: 3rem;
-  text-align: left;
-}
-
 .date-input-wrap {
   position: relative;
+  width: 100%;
+}
+
+.date-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #555;
+  padding: 0.6em 0.8em;
+  background-color: #333;
+  color: #eee;
+}
+
+.date-display-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .date-input-icon {
-  position: absolute;
-  top: 50%;
-  right: 0.95rem;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #cfd6ea;
-  transform: translateY(-50%);
-  pointer-events: none;
 }
 
-.date-input::-webkit-date-and-time-value {
-  text-align: left;
-}
-
-.date-input::-webkit-datetime-edit {
-  padding: 0;
-}
-
-.date-input::-webkit-calendar-picker-indicator {
+.date-input-native {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   margin: 0;
+  min-width: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.date-input-native::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
   opacity: 0;
   cursor: pointer;
 }
