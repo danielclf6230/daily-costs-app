@@ -318,6 +318,14 @@ label {
   font-size: 1.08rem;
 }
 
+.date-input {
+  min-height: 44px;
+}
+
+.date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
 .login-form {
   display: grid;
   gap: 12px;

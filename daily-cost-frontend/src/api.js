@@ -1,4 +1,4 @@
-const base = import.meta.env.VITE_API_BASE_URL;
+const base = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 function getToken() {
   try {
@@ -23,10 +23,21 @@ async function request(path, { method = "GET", body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const data = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let data = {};
+
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      data = { error: raw };
+    }
+  }
 
   if (!res.ok) {
-    throw new Error(data?.message || data?.error || "Request failed");
+    throw new Error(
+      data?.message || data?.error || `Request failed (${res.status})`,
+    );
   }
 
   return data;

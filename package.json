@@ -1,0 +1,9 @@
+{
+  "name": "daily-costs-app",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix daily-cost-frontend start",
+    "dev": "npm --prefix daily-cost-frontend dev",
+    "build": "npm --prefix daily-cost-frontend build"
+  }
+}

@@ -17,23 +17,30 @@ const allowedOrigins = [
   "https://daily-costs-app.vercel.app",
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        console.log("Blocked by CORS:", origin);
-        return callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  }),
-);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
 
-app.options("*", cors());
+    console.log("Blocked by CORS:", origin);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+app.use((err, req, res, next) => {
+  if (err?.message === "Not allowed by CORS") {
+    return res.status(403).json({ ok: false, error: err.message });
+  }
+
+  return next(err);
+});
 
 const pool = makePool();
 
