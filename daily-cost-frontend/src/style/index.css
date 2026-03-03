@@ -336,6 +336,7 @@ label {
   padding: 0.6em 0.8em;
   background-color: #333;
   color: #eee;
+  cursor: pointer;
 }
 
 .date-display-value {
@@ -360,14 +361,14 @@ label {
   margin: 0;
   min-width: 0;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .date-input-native::-webkit-calendar-picker-indicator {
   position: absolute;
   inset: 0;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .login-form {

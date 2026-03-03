@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   createCost,
@@ -58,6 +58,7 @@ export default function DailyCostApp() {
   const [note, setNote] = useState("");
   const [saveMsg, setSaveMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const dateInputRef = useRef(null);
 
   // History
   const [months, setMonths] = useState([]);
@@ -214,6 +215,19 @@ export default function DailyCostApp() {
     }));
   }
 
+  function openDatePicker() {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  }
+
   return (
     <div className="container">
       <div className="page-header">
@@ -271,7 +285,7 @@ export default function DailyCostApp() {
         <form onSubmit={onSave} className="form-grid">
           <label className="date-field">
             Date
-            <div className="date-input-wrap">
+            <div className="date-input-wrap" onClick={openDatePicker}>
               <div className="date-display" aria-hidden="true">
                 <span className="date-display-value">
                   {formatDateLabel(costDate)}
@@ -295,6 +309,7 @@ export default function DailyCostApp() {
                 </span>
               </div>
               <input
+                ref={dateInputRef}
                 type="date"
                 className="date-input-native"
                 value={costDate}
