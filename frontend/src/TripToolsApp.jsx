@@ -1688,6 +1688,21 @@ function AdminManager({ currentUser, onClose }) {
     }
   }
 
+  const groupsByOwner = overview.groups.reduce((sections, group) => {
+    const owner = group.members.find((member) => member.role === "owner");
+    const ownerId = owner?.id ?? group.owner_user_id;
+    const ownerName = owner?.name
+      || overview.users.find((account) => account.id === ownerId)?.name
+      || "Unknown owner";
+    let section = sections.find((entry) => entry.ownerId === ownerId);
+    if (!section) {
+      section = { ownerId, ownerName, groups: [] };
+      sections.push(section);
+    }
+    section.groups.push(group);
+    return sections;
+  }, []);
+
   return (
     <div
       className="manager-overlay"
@@ -1747,39 +1762,52 @@ function AdminManager({ currentUser, onClose }) {
             <p className="drag-help">
               Drag a traveler from the user list into a trip to add access. This does not remove their other trips.
             </p>
-            <div className={`group-board ${dragging ? "is-dragging" : ""}`}>
-              {overview.groups.map((group) => (
-                <div
-                  className={`group-dropzone ${dragTarget === group.id ? "drag-over" : ""}`}
-                  key={group.id}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setDragTarget(group.id);
-                  }}
-                  onDrop={(event) => dropIntoGroup(event, group.id)}
-                >
-                  <div className="dropzone-heading">
-                    <div><b>{group.name}</b><small>PRIVATE TRIP GROUP</small></div>
-                    <span>{group.members.length}</span>
+            <div className={`owner-group-sections ${dragging ? "is-dragging" : ""}`}>
+              {groupsByOwner.map((ownerSection) => (
+                <section className="owner-group-section" key={ownerSection.ownerId}>
+                  <div className="owner-group-heading">
+                    <div>
+                      <i>{ownerSection.ownerName[0].toUpperCase()}</i>
+                      <span><small>GROUP OWNER</small><strong>{ownerSection.ownerName}</strong></span>
+                    </div>
+                    <b>{ownerSection.groups.length} {ownerSection.groups.length === 1 ? "trip" : "trips"}</b>
                   </div>
-                  <div className="member-drag-list">
-                    {group.members.map((member) => (
-                      <button
-                        type="button"
-                        draggable
-                        className={`member-drag-chip ${dragging?.userId === member.id && dragging?.sourceGroupId === group.id ? "dragging" : ""}`}
-                        key={`${group.id}-${member.id}`}
-                        onDragStart={(event) => startDrag(event, member.id, group.id, member.role)}
-                        onDragEnd={() => { setDragging(null); setDragTarget(null); }}
-                        title={member.role === "owner" ? "Owner of this trip" : "Drag to the remove zone or another trip"}
+                  <div className="group-board">
+                    {ownerSection.groups.map((group) => (
+                      <div
+                        className={`group-dropzone ${dragTarget === group.id ? "drag-over" : ""}`}
+                        key={group.id}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          setDragTarget(group.id);
+                        }}
+                        onDrop={(event) => dropIntoGroup(event, group.id)}
                       >
-                        <i>⠿</i><span>{member.name}</span>{member.role === "owner" && <b>OWNER</b>}
-                      </button>
+                        <div className="dropzone-heading">
+                          <div><b>{group.name}</b><small>PRIVATE TRIP GROUP</small></div>
+                          <span>{group.members.length}</span>
+                        </div>
+                        <div className="member-drag-list">
+                          {group.members.map((member) => (
+                            <button
+                              type="button"
+                              draggable
+                              className={`member-drag-chip ${dragging?.userId === member.id && dragging?.sourceGroupId === group.id ? "dragging" : ""}`}
+                              key={`${group.id}-${member.id}`}
+                              onDragStart={(event) => startDrag(event, member.id, group.id, member.role)}
+                              onDragEnd={() => { setDragging(null); setDragTarget(null); }}
+                              title={member.role === "owner" ? "Owner of this trip" : "Drag to the remove zone or another trip"}
+                            >
+                              <i>⠿</i><span>{member.name}</span>{member.role === "owner" && <b>OWNER</b>}
+                            </button>
+                          ))}
+                          {!group.members.length && <span className="empty-dropzone">Drop a traveler here</span>}
+                        </div>
+                      </div>
                     ))}
-                    {!group.members.length && <span className="empty-dropzone">Drop a traveler here</span>}
                   </div>
-                </div>
+                </section>
               ))}
             </div>
             {dragging?.sourceGroupId && dragging.membershipRole !== "owner" && (
