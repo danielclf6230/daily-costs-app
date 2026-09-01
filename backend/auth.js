@@ -2,14 +2,15 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 export async function loginHandler(req, res, pool) {
-  const { name, password } = req.body ?? {};
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
 
-  if (!name || !password) {
-    return res.status(400).json({ message: "Missing credentials" });
+  if (!name || !password || name.length > 80 || password.length > 100) {
+    return res.status(400).json({ message: "Invalid credentials" });
   }
 
   try {
-    const [results] = await pool.query("SELECT * FROM users WHERE name = ?", [
+    const [results] = await pool.query("SELECT * FROM trip_users WHERE name = ?", [
       name,
     ]);
 
@@ -25,8 +26,10 @@ export async function loginHandler(req, res, pool) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
-      expiresIn: "1d",
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: "8h",
+      issuer: "trip-tools-api",
+      audience: "trip-tools-web",
     });
 
     res.json({
@@ -34,6 +37,7 @@ export async function loginHandler(req, res, pool) {
       name: user.name,
       avatarUrl: user.avatarUrl || null,
       bannerUrl: user.bannerUrl || null,
+      role: user.role || "user",
       token,
     });
   } catch (err) {
@@ -51,7 +55,7 @@ export function requireAuth(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { issuer: "trip-tools-api", audience: "trip-tools-web" });
     req.user = payload;
     next();
   } catch {

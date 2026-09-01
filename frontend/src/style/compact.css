@@ -1,0 +1,10 @@
+@media(max-width:760px){
+  .stop-editor{grid-template-columns:30px 1fr 1fr;gap:10px;min-height:0;padding:13px 11px}
+  .stop-editor label{font-size:9px}
+  .stop-editor input{margin-top:3px;padding:5px 2px;font-size:14px!important}
+  .stop-number{font-size:11px}
+  .remove-stop{font-size:17px}
+  .day-head{min-height:68px;padding:9px 12px}
+  .day-badge{width:44px;height:44px}
+  .day-head h3{font-size:16px}
+}

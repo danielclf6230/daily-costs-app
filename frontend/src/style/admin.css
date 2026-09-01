@@ -1,0 +1,12 @@
+.admin-create{display:grid;grid-template-columns:1fr 1.4fr auto;gap:12px;align-items:end;padding:20px;background:#efe7da;border:1px solid #d7cbbb}
+.admin-create label{font-size:8px;letter-spacing:.14em;color:#797d77}
+.admin-create input{display:block;width:100%;margin-top:6px;padding:10px;border:1px solid #cfc3b3;background:#fffdf9;outline:0}
+.admin-message{margin:15px 0;padding:11px 14px;background:#e6ede2;color:#506747;font-size:12px}
+.admin-users{margin-top:25px;border:1px solid var(--line)}
+.admin-row{display:grid;grid-template-columns:1.2fr .65fr .6fr 2fr;gap:12px;align-items:center;min-height:62px;padding:10px 15px;border-bottom:1px solid var(--line);font-size:12px}
+.admin-head{min-height:40px;background:var(--ink);color:#dce7e5;font-size:9px;letter-spacing:.1em}
+.role-pill{justify-self:start;padding:4px 8px;border-radius:999px;background:#e5e2da;text-transform:uppercase;font-size:8px;font-weight:700}
+.role-pill.admin{background:#f2d6ce;color:#a33c2f}
+.reset-box{display:flex}.reset-box input{min-width:0;flex:1;padding:8px;border:1px solid #d2c7b8}.reset-box button{border:0;background:var(--ink);color:#fff;font-size:10px}
+.admin-security{color:#8a8e88;font-size:10px;text-align:right}
+@media(max-width:760px){.admin-create{grid-template-columns:1fr}.admin-row{grid-template-columns:1fr auto}.admin-head{display:none}.admin-row>span:nth-child(3){display:none}.reset-box{grid-column:1/-1}}

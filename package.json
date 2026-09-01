@@ -1,5 +1,5 @@
 {
-  "name": "daily-costs-app",
+  "name": "trip-tools-app",
   "private": true,
   "scripts": {
     "start": "npm --prefix daily-cost-frontend start",

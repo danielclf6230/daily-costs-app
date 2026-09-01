@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./Login";
 import ProtectedRoute from "./ProtectedRoute";
 import UserPage from "./UserPage";
-import DailyCostApp from "./DailyCostApp"; // adjust import path if needed
+import TripToolsApp from "./TripToolsApp";
 
 export default function App() {
   return (
@@ -15,7 +15,7 @@ export default function App() {
             path="/app"
             element={
               <ProtectedRoute>
-                <DailyCostApp />
+                <TripToolsApp />
               </ProtectedRoute>
             }
           />
