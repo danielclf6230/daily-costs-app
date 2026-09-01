@@ -8,6 +8,7 @@ import "./style/compact.css";
 import "./style/manager.css";
 import "./style/modal-consistency.css";
 import "./style/manager-alignment.css";
+import "./style/trip-library.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -51,6 +51,8 @@ const time = z
   .or(z.literal(""));
 const TripSchema = z.object({
   tripName: z.string().max(120),
+  country: z.string().max(80).default(""),
+  city: z.string().max(80).default(""),
   startDate: date,
   endDate: date,
   shopping: z
@@ -80,6 +82,19 @@ const TripSchema = z.object({
   travelers: z.array(z.object({ id, name: z.string().max(80) })).max(30),
   notes: z.string().max(20000),
 });
+
+const NewTripSchema = z
+  .object({
+    tripName: z.string().trim().min(2).max(120).optional(),
+    country: z.string().trim().min(2).max(80),
+    city: z.string().trim().min(2).max(80),
+    startDate: date.refine(Boolean),
+    endDate: date.refine(Boolean),
+  })
+  .refine((value) => value.endDate >= value.startDate, {
+    message: "The end date must be on or after the start date.",
+    path: ["endDate"],
+  });
 
 app.get("/health", async (_req, res) => {
   try {
@@ -229,6 +244,29 @@ app.patch("/api/auth/password", authLimiter, requireAuth, async (req, res) => {
   }
 });
 
+app.patch("/api/auth/avatar", requireAuth, async (req, res) => {
+  const parsed = z
+    .object({
+      avatarUrl: z
+        .string()
+        .max(1_800_000)
+        .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/)
+        .nullable(),
+    })
+    .safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ ok: false, error: "Choose a valid JPG, PNG, or WebP image." });
+  try {
+    await pool.execute("UPDATE trip_users SET avatarUrl = ? WHERE id = ?", [
+      parsed.data.avatarUrl,
+      req.user.id,
+    ]);
+    res.json({ ok: true, avatarUrl: parsed.data.avatarUrl });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.use("/api/admin", requireAuth, async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
@@ -262,9 +300,22 @@ app.get("/api/admin/overview", async (_req, res) => {
   `);
   const [groups] = await pool.query(`
     SELECT t.id, t.owner_user_id,
-      COALESCE(JSON_UNQUOTE(JSON_EXTRACT(t.trip_data, '$.tripName')), CONCAT('Trip #', t.id)) AS name,
+      COALESCE(
+        JSON_UNQUOTE(JSON_EXTRACT(active_profile.trip_data, '$.tripName')),
+        JSON_UNQUOTE(JSON_EXTRACT(latest_profile.trip_data, '$.tripName')),
+        JSON_UNQUOTE(JSON_EXTRACT(t.trip_data, '$.tripName')),
+        CONCAT('Group #', t.id)
+      ) AS name,
       t.updated_at
-    FROM trip_tools_trips t ORDER BY t.created_at, t.id
+    FROM trip_tools_trips t
+    LEFT JOIN trip_tools_active_profiles active ON active.user_id = t.owner_user_id
+    LEFT JOIN trip_tools_trip_profiles active_profile
+      ON active_profile.id = active.profile_id AND active_profile.group_id = t.id
+    LEFT JOIN trip_tools_trip_profiles latest_profile ON latest_profile.id = (
+      SELECT p.id FROM trip_tools_trip_profiles p
+      WHERE p.group_id = t.id ORDER BY p.created_at DESC, p.id DESC LIMIT 1
+    )
+    ORDER BY t.created_at, t.id
   `);
   res.json({
     ok: true,
@@ -310,7 +361,9 @@ app.post("/api/admin/users", async (req, res) => {
       [parsed.data.name, hash],
     );
     const data = JSON.stringify({
-      tripName: `${parsed.data.name}'s Japan Trip`,
+      tripName: `${parsed.data.name}'s Trip`,
+      country: "",
+      city: "",
       startDate: "",
       endDate: "",
       shopping: [],
@@ -367,118 +420,11 @@ app.patch("/api/admin/users/:id/password", async (req, res) => {
   res.json({ ok: true });
 });
 
-async function detachFromCurrentGroup(connection, userId) {
-  const [memberships] = await connection.execute(
-    `SELECT m.trip_id, m.role, t.owner_user_id FROM trip_tools_members m
-     JOIN trip_tools_trips t ON t.id = m.trip_id WHERE m.user_id = ? FOR UPDATE`,
-    [userId],
-  );
-  const current = memberships[0];
-  if (!current) return;
-
-  if (current.owner_user_id === userId) {
-    const [others] = await connection.execute(
-      "SELECT user_id FROM trip_tools_members WHERE trip_id = ? AND user_id <> ? ORDER BY joined_at LIMIT 1 FOR UPDATE",
-      [current.trip_id, userId],
-    );
-    if (others.length) {
-      await connection.execute(
-        "UPDATE trip_tools_trips SET owner_user_id = ? WHERE id = ?",
-        [others[0].user_id, current.trip_id],
-      );
-      await connection.execute(
-        "UPDATE trip_tools_members SET role = 'owner' WHERE trip_id = ? AND user_id = ?",
-        [current.trip_id, others[0].user_id],
-      );
-      await connection.execute(
-        "DELETE FROM trip_tools_members WHERE trip_id = ? AND user_id = ?",
-        [current.trip_id, userId],
-      );
-    } else {
-      await connection.execute("DELETE FROM trip_tools_trips WHERE id = ?", [
-        current.trip_id,
-      ]);
-    }
-  } else {
-    await connection.execute(
-      "DELETE FROM trip_tools_members WHERE trip_id = ? AND user_id = ?",
-      [current.trip_id, userId],
-    );
-  }
-}
-
 app.patch("/api/admin/users/:id/group", async (req, res) => {
-  const userId = Number(req.params.id);
-  const parsed = z
-    .object({ groupId: z.number().int().positive().nullable() })
-    .safeParse(req.body);
-  if (!Number.isSafeInteger(userId) || userId < 1 || !parsed.success)
-    return res
-      .status(400)
-      .json({ ok: false, error: "Choose a valid user and group." });
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [users] = await connection.execute(
-      "SELECT id, name FROM trip_users WHERE id = ? FOR UPDATE",
-      [userId],
-    );
-    if (!users.length) {
-      await connection.rollback();
-      return res.status(404).json({ ok: false, error: "User not found." });
-    }
-    const [current] = await connection.execute(
-      "SELECT trip_id FROM trip_tools_members WHERE user_id = ?",
-      [userId],
-    );
-    if (parsed.data.groupId && current[0]?.trip_id === parsed.data.groupId) {
-      await connection.commit();
-      return res.json({ ok: true });
-    }
-    if (parsed.data.groupId) {
-      const [target] = await connection.execute(
-        "SELECT id FROM trip_tools_trips WHERE id = ?",
-        [parsed.data.groupId],
-      );
-      if (!target.length) {
-        await connection.rollback();
-        return res.status(404).json({ ok: false, error: "Group not found." });
-      }
-    }
-    await detachFromCurrentGroup(connection, userId);
-    if (parsed.data.groupId) {
-      await connection.execute(
-        "INSERT INTO trip_tools_members (trip_id, user_id, role) VALUES (?, ?, 'member')",
-        [parsed.data.groupId, userId],
-      );
-    } else {
-      const data = JSON.stringify({
-        tripName: `${users[0].name}'s Japan Trip`,
-        startDate: "",
-        endDate: "",
-        shopping: [],
-        days: [],
-        travelers: [],
-        notes: "",
-      });
-      const [trip] = await connection.execute(
-        "INSERT INTO trip_tools_trips (owner_user_id, trip_data) VALUES (?, ?)",
-        [userId, data],
-      );
-      await connection.execute(
-        "INSERT INTO trip_tools_members (trip_id, user_id, role) VALUES (?, ?, 'owner')",
-        [trip.insertId, userId],
-      );
-    }
-    await connection.commit();
-    res.json({ ok: true });
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
+  res.status(410).json({
+    ok: false,
+    error: "Moving a traveler was replaced by adding or removing individual trip memberships.",
+  });
 });
 
 app.delete("/api/admin/users/:id", async (req, res) => {
@@ -501,7 +447,17 @@ app.delete("/api/admin/users/:id", async (req, res) => {
       await connection.rollback();
       return res.status(404).json({ ok: false, error: "User not found." });
     }
-    await detachFromCurrentGroup(connection, userId);
+    const [ownedTrips] = await connection.execute(
+      "SELECT trip_id FROM trip_tools_members WHERE user_id = ? AND role = 'owner' LIMIT 1 FOR UPDATE",
+      [userId],
+    );
+    if (ownedTrips.length) {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: "This traveler still owns one or more trips. Remove or transfer those trips first.",
+      });
+    }
     await connection.execute("DELETE FROM trip_users WHERE id = ?", [userId]);
     await connection.commit();
     res.json({ ok: true });
@@ -513,30 +469,361 @@ app.delete("/api/admin/users/:id", async (req, res) => {
   }
 });
 
-app.use("/api/trip", requireAuth);
+app.use("/api/manage", requireAuth);
 
-async function getMembership(userId) {
+async function managementAccess(userId, tripId) {
   const [rows] = await pool.execute(
-    `SELECT m.trip_id, m.role, t.trip_data, t.updated_at
-     FROM trip_tools_members m JOIN trip_tools_trips t ON t.id = m.trip_id
-     WHERE m.user_id = ? ORDER BY m.joined_at LIMIT 1`,
-    [userId],
+    `SELECT u.role,
+      EXISTS(
+        SELECT 1 FROM trip_tools_members m
+        WHERE m.user_id = u.id AND m.trip_id = ? AND m.role = 'owner'
+      ) AS owns_trip
+     FROM trip_users u WHERE u.id = ?`,
+    [tripId, userId],
+  );
+  return rows[0]?.role === "admin" || Boolean(rows[0]?.owns_trip);
+}
+
+app.get("/api/manage/overview", async (req, res) => {
+  try {
+    const [managers] = await pool.execute(
+      "SELECT role FROM trip_users WHERE id = ?",
+      [req.user.id],
+    );
+    const isAdmin = managers[0]?.role === "admin";
+    const [groups] = await pool.execute(
+      `SELECT DISTINCT t.id, t.owner_user_id,
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(t.trip_data, '$.tripName')), CONCAT('Trip #', t.id)) AS name,
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(t.trip_data, '$.city')), '') AS city,
+        COALESCE(JSON_UNQUOTE(JSON_EXTRACT(t.trip_data, '$.country')), '') AS country,
+        t.updated_at
+       FROM trip_tools_trips t
+       LEFT JOIN trip_tools_members manager_membership
+         ON manager_membership.trip_id = t.id AND manager_membership.user_id = ?
+       WHERE ? OR manager_membership.role = 'owner'
+       ORDER BY t.created_at, t.id`,
+      [req.user.id, isAdmin],
+    );
+    const groupIds = groups.map((group) => group.id);
+    let memberships = [];
+    let users = [];
+    if (groupIds.length) {
+      const placeholders = groupIds.map(() => "?").join(",");
+      [memberships] = await pool.query(
+        `SELECT m.trip_id, m.user_id, m.role, u.name
+         FROM trip_tools_members m JOIN trip_users u ON u.id = m.user_id
+         WHERE m.trip_id IN (${placeholders}) ORDER BY m.joined_at, u.id`,
+        groupIds,
+      );
+      if (isAdmin) {
+        [users] = await pool.query(
+          `SELECT u.id, u.name, u.role, u.created_at,
+            COUNT(m.trip_id) AS group_count,
+            SUM(m.role = 'owner') AS owned_group_count
+           FROM trip_users u LEFT JOIN trip_tools_members m ON m.user_id = u.id
+           GROUP BY u.id ORDER BY u.created_at, u.id`,
+        );
+      } else {
+        [users] = await pool.query(
+          `SELECT u.id, u.name, u.role, u.created_at,
+            COUNT(DISTINCT all_memberships.trip_id) AS group_count,
+            SUM(all_memberships.role = 'owner') AS owned_group_count
+           FROM trip_users u
+           JOIN trip_tools_members visible_membership ON visible_membership.user_id = u.id
+           LEFT JOIN trip_tools_members all_memberships ON all_memberships.user_id = u.id
+           WHERE visible_membership.trip_id IN (${placeholders})
+           GROUP BY u.id ORDER BY u.created_at, u.id`,
+          groupIds,
+        );
+      }
+    }
+    res.json({
+      ok: true,
+      isAdmin,
+      users,
+      groups: groups.map((group) => ({
+        ...group,
+        members: memberships
+          .filter((membership) => membership.trip_id === group.id)
+          .map((membership) => ({
+            id: membership.user_id,
+            name: membership.name,
+            role: membership.role,
+          })),
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/api/manage/groups/:tripId/users/:userId", async (req, res) => {
+  const tripId = Number(req.params.tripId);
+  const userId = Number(req.params.userId);
+  if (![tripId, userId].every((value) => Number.isSafeInteger(value) && value > 0))
+    return res.status(400).json({ ok: false, error: "Choose a valid user and trip." });
+  try {
+    if (!(await managementAccess(req.user.id, tripId)))
+      return res.status(403).json({ ok: false, error: "You can only manage trips you own." });
+    const [[manager]] = await pool.execute("SELECT role FROM trip_users WHERE id = ?", [req.user.id]);
+    if (manager.role !== "admin") {
+      const [visible] = await pool.execute(
+        `SELECT 1 FROM trip_tools_members candidate
+         JOIN trip_tools_members owned
+           ON owned.trip_id = candidate.trip_id AND owned.user_id = ? AND owned.role = 'owner'
+         WHERE candidate.user_id = ? LIMIT 1`,
+        [req.user.id, userId],
+      );
+      if (!visible.length)
+        return res.status(403).json({ ok: false, error: "That traveler is not in one of your groups." });
+    }
+    const [users] = await pool.execute("SELECT id FROM trip_users WHERE id = ?", [userId]);
+    if (!users.length)
+      return res.status(404).json({ ok: false, error: "User not found." });
+    await pool.execute(
+      "INSERT IGNORE INTO trip_tools_members (trip_id, user_id, role) VALUES (?, ?, 'member')",
+      [tripId, userId],
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.delete("/api/manage/groups/:tripId/users/:userId", async (req, res) => {
+  const tripId = Number(req.params.tripId);
+  const userId = Number(req.params.userId);
+  if (![tripId, userId].every((value) => Number.isSafeInteger(value) && value > 0))
+    return res.status(400).json({ ok: false, error: "Choose a valid user and trip." });
+  try {
+    if (!(await managementAccess(req.user.id, tripId)))
+      return res.status(403).json({ ok: false, error: "You can only manage trips you own." });
+    const [memberships] = await pool.execute(
+      "SELECT role FROM trip_tools_members WHERE trip_id = ? AND user_id = ?",
+      [tripId, userId],
+    );
+    if (!memberships.length)
+      return res.status(404).json({ ok: false, error: "That traveler is not in this trip." });
+    if (memberships[0].role === "owner")
+      return res.status(400).json({ ok: false, error: "An owner cannot be removed from their own trip." });
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        "DELETE FROM trip_tools_members WHERE trip_id = ? AND user_id = ?",
+        [tripId, userId],
+      );
+      await connection.execute(
+        "DELETE FROM trip_tools_active_trips WHERE user_id = ? AND trip_id = ?",
+        [userId, tripId],
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.use("/api/trip", requireAuth);
+app.use("/api/trips", requireAuth);
+
+async function getTripAccess(userId, tripId) {
+  const [rows] = await pool.execute(
+    `SELECT t.id AS trip_id, t.trip_data, t.updated_at, m.role
+     FROM trip_tools_members m
+     JOIN trip_tools_trips t ON t.id = m.trip_id
+     WHERE m.user_id = ? AND t.id = ? LIMIT 1`,
+    [userId, tripId],
   );
   return rows[0] ?? null;
 }
 
+async function hasOwnerPrivileges(userId) {
+  const [rows] = await pool.execute(
+    `SELECT u.role,
+      EXISTS(
+        SELECT 1 FROM trip_tools_members m
+        WHERE m.user_id = u.id AND m.role = 'owner'
+      ) AS owns_trip
+     FROM trip_users u WHERE u.id = ?`,
+    [userId],
+  );
+  return rows[0]?.role === "admin" || Boolean(rows[0]?.owns_trip);
+}
+
+function tripDays(startDate, endDate) {
+  const days = [];
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const last = new Date(`${endDate}T00:00:00Z`);
+  while (cursor <= last && days.length < 60) {
+    const day = cursor.toISOString().slice(0, 10);
+    days.push({
+      id: crypto.randomUUID(),
+      date: day,
+      completed: false,
+      items: [{ id: crypto.randomUUID(), place: "", time: "", duration: "", note: "", checked: false }],
+    });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
+
+app.get("/api/trips", async (req, res) => {
+  try {
+    const [profiles] = await pool.execute(
+      `SELECT t.id, t.trip_data, t.created_at, t.updated_at, m.role
+       FROM trip_tools_members m
+       JOIN trip_tools_trips t ON t.id = m.trip_id
+       WHERE m.user_id = ? ORDER BY t.created_at DESC, t.id DESC`,
+      [req.user.id],
+    );
+    const [activeProfiles] = await pool.execute(
+      `SELECT active.trip_id
+       FROM trip_tools_active_trips active
+       JOIN trip_tools_members member
+         ON member.trip_id = active.trip_id AND member.user_id = active.user_id
+       WHERE active.user_id = ?`,
+      [req.user.id],
+    );
+    const [permissions] = await pool.execute(
+      `SELECT u.role,
+        EXISTS(SELECT 1 FROM trip_tools_members m WHERE m.user_id = u.id AND m.role = 'owner') AS owns_trip
+       FROM trip_users u WHERE u.id = ?`,
+      [req.user.id],
+    );
+    const canManage = permissions[0]?.role === "admin" || Boolean(permissions[0]?.owns_trip);
+    res.json({
+      ok: true,
+      canCreate: canManage,
+      canManage,
+      activeTripId: activeProfiles[0]?.trip_id ?? null,
+      trips: profiles.map((profile) => {
+        const data = typeof profile.trip_data === "string" ? JSON.parse(profile.trip_data) : profile.trip_data;
+        return {
+          id: profile.id,
+          tripName: data.tripName || "Untitled trip",
+          country: data.country || "",
+          city: data.city || "",
+          startDate: data.startDate || "",
+          endDate: data.endDate || "",
+          role: profile.role,
+          createdAt: profile.created_at,
+          updatedAt: profile.updated_at,
+        };
+      }),
+    });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.patch("/api/trips/active", async (req, res) => {
+  const parsed = z
+    .object({ tripId: z.number().int().positive().nullable() })
+    .safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ ok: false, error: "Choose a valid trip." });
+  try {
+    if (parsed.data.tripId === null) {
+      await pool.execute(
+        "DELETE FROM trip_tools_active_trips WHERE user_id = ?",
+        [req.user.id],
+      );
+      return res.json({ ok: true, activeTripId: null });
+    }
+    const access = await getTripAccess(req.user.id, parsed.data.tripId);
+    if (!access)
+      return res.status(404).json({ ok: false, error: "Trip not found in your group." });
+    await pool.execute(
+      `INSERT INTO trip_tools_active_trips (user_id, trip_id)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE trip_id = VALUES(trip_id)`,
+      [req.user.id, parsed.data.tripId],
+    );
+    res.json({ ok: true, activeTripId: parsed.data.tripId });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/api/trips", async (req, res) => {
+  const parsed = NewTripSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ ok: false, error: parsed.error.flatten() });
+  try {
+    const [permissions] = await pool.execute(
+      `SELECT u.role,
+        EXISTS(SELECT 1 FROM trip_tools_members m WHERE m.user_id = u.id AND m.role = 'owner') AS owns_trip
+       FROM trip_users u WHERE u.id = ?`,
+      [req.user.id],
+    );
+    if (permissions[0]?.role !== "admin" && !permissions[0]?.owns_trip)
+      return res.status(403).json({ ok: false, error: "Only group owners can create trips." });
+    const values = parsed.data;
+    const trip = {
+      tripName: values.tripName || `${values.city} Adventure`,
+      country: values.country,
+      city: values.city,
+      startDate: values.startDate,
+      endDate: values.endDate,
+      shopping: [],
+      days: tripDays(values.startDate, values.endDate),
+      travelers: [],
+      notes: "",
+    };
+    const connection = await pool.getConnection();
+    let created;
+    try {
+      await connection.beginTransaction();
+      [created] = await connection.execute(
+        "INSERT INTO trip_tools_trips (owner_user_id, trip_data) VALUES (?, ?)",
+        [req.user.id, JSON.stringify(trip)],
+      );
+      await connection.execute(
+        "INSERT INTO trip_tools_members (trip_id, user_id, role) VALUES (?, ?, 'owner')",
+        [created.insertId, req.user.id],
+      );
+      await connection.execute(
+        `INSERT INTO trip_tools_active_trips (user_id, trip_id) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE trip_id = VALUES(trip_id)`,
+        [req.user.id, created.insertId],
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    res.status(201).json({ ok: true, id: created.insertId, trip });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
 app.get("/api/trip", async (req, res) => {
   try {
-    const membership = await getMembership(req.user.id);
+    const profileId = req.query.tripId ? Number(req.query.tripId) : null;
+    if (req.query.tripId && (!Number.isSafeInteger(profileId) || profileId < 1))
+      return res.status(400).json({ ok: false, error: "Invalid trip." });
+    const membership = await getTripAccess(req.user.id, profileId);
     if (!membership)
       return res
         .status(404)
         .json({ ok: false, error: "No trip is connected to this account." });
+    const ownerPrivileges = await hasOwnerPrivileges(req.user.id);
     res.json({
       ok: true,
+      id: membership.trip_id,
       trip: membership.trip_data,
       role: membership.role,
-      canInvite: membership.role === "owner",
+      canInvite: ownerPrivileges,
       updatedAt: membership.updated_at,
     });
   } catch (error) {
@@ -550,7 +837,10 @@ app.put("/api/trip", async (req, res) => {
   if (!parsed.success)
     return res.status(400).json({ ok: false, error: parsed.error.flatten() });
   try {
-    const membership = await getMembership(req.user.id);
+    const profileId = Number(req.query.tripId);
+    if (!Number.isSafeInteger(profileId) || profileId < 1)
+      return res.status(400).json({ ok: false, error: "Choose a valid trip." });
+    const membership = await getTripAccess(req.user.id, profileId);
     if (!membership)
       return res
         .status(404)
@@ -568,7 +858,10 @@ app.put("/api/trip", async (req, res) => {
 
 app.get("/api/trip/members", async (req, res) => {
   try {
-    const membership = await getMembership(req.user.id);
+    const tripId = Number(req.query.tripId);
+    if (!Number.isSafeInteger(tripId) || tripId < 1)
+      return res.status(400).json({ ok: false, error: "Choose a valid trip." });
+    const membership = await getTripAccess(req.user.id, tripId);
     if (!membership)
       return res
         .status(404)
@@ -586,15 +879,18 @@ app.get("/api/trip/members", async (req, res) => {
 
 app.post("/api/trip/invites", async (req, res) => {
   try {
-    const membership = await getMembership(req.user.id);
+    const tripId = Number(req.body?.tripId);
+    if (!Number.isSafeInteger(tripId) || tripId < 1)
+      return res.status(400).json({ ok: false, error: "Choose a valid trip." });
+    const membership = await getTripAccess(req.user.id, tripId);
     if (!membership)
       return res
         .status(404)
         .json({ ok: false, error: "No shared trip found." });
-    if (membership.role !== "owner")
+    if (!(await hasOwnerPrivileges(req.user.id)))
       return res.status(403).json({
         ok: false,
-        error: "Only the group owner can invite new members.",
+        error: "Only trip owners can invite new members.",
       });
     const code = crypto.randomBytes(4).toString("hex").toUpperCase();
     await pool.execute(

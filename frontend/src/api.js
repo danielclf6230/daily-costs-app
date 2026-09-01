@@ -37,22 +37,39 @@ export function changePassword(currentPassword, newPassword, confirmPassword) {
   });
 }
 
-export async function loadTrip() {
-  const data = await request("/api/trip");
-  return { trip: data.trip, canInvite: Boolean(data.canInvite), membershipRole: data.role };
+export function updateAvatar(avatarUrl) {
+  return request("/api/auth/avatar", { method: "PATCH", body: { avatarUrl } });
 }
 
-export function saveTrip(trip) {
-  return request("/api/trip", { method: "PUT", body: trip });
+export async function loadTrip(tripId) {
+  const data = await request(`/api/trip?tripId=${tripId}`);
+  return { id: data.id, trip: data.trip, canInvite: Boolean(data.canInvite), membershipRole: data.role };
 }
 
-export async function loadMembers() {
-  const data = await request("/api/trip/members");
+export function saveTrip(tripId, trip) {
+  return request(`/api/trip?tripId=${tripId}`, { method: "PUT", body: trip });
+}
+
+export async function loadTrips() {
+  const data = await request("/api/trips");
+  return { trips: data.trips, canCreate: Boolean(data.canCreate), canManage: Boolean(data.canManage), activeTripId: data.activeTripId ?? null };
+}
+
+export function createTrip(trip) {
+  return request("/api/trips", { method: "POST", body: trip });
+}
+
+export function selectActiveTrip(tripId) {
+  return request("/api/trips/active", { method: "PATCH", body: { tripId } });
+}
+
+export async function loadMembers(tripId) {
+  const data = await request(`/api/trip/members?tripId=${tripId}`);
   return data.members;
 }
 
-export async function createInvite() {
-  return request("/api/trip/invites", { method: "POST" });
+export async function createInvite(tripId) {
+  return request("/api/trip/invites", { method: "POST", body: { tripId } });
 }
 
 export async function loadAdminUsers() {
@@ -61,8 +78,8 @@ export async function loadAdminUsers() {
 }
 
 export async function loadAdminOverview() {
-  const data = await request("/api/admin/overview");
-  return { users: data.users, groups: data.groups };
+  const data = await request("/api/manage/overview");
+  return { users: data.users, groups: data.groups, isAdmin: Boolean(data.isAdmin) };
 }
 
 export function createAdminUser(name, password) {
@@ -73,8 +90,12 @@ export function resetUserPassword(id, password) {
   return request(`/api/admin/users/${id}/password`, { method: "PATCH", body: { password } });
 }
 
-export function moveUserToGroup(id, groupId) {
-  return request(`/api/admin/users/${id}/group`, { method: "PATCH", body: { groupId } });
+export function addUserToGroup(userId, groupId) {
+  return request(`/api/manage/groups/${groupId}/users/${userId}`, { method: "POST" });
+}
+
+export function removeUserFromGroup(userId, groupId) {
+  return request(`/api/manage/groups/${groupId}/users/${userId}`, { method: "DELETE" });
 }
 
 export function deleteAdminUser(id) {

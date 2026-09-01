@@ -51,7 +51,7 @@ export default function UserPage() {
           <span>TRAVELER PROFILE</span>
           <h1>{user?.name}</h1>
           <p>{user?.role === "admin" ? "Administrator" : "Trip member"}</p>
-          <div className="profile-stamp">日本<br /><small>JAPAN</small></div>
+          <div className="profile-stamp">旅<br /><small>TRAVEL</small></div>
         </aside>
 
         <div className="password-card">

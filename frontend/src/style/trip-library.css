@@ -1,0 +1,50 @@
+.trip-hero:after{content:none}
+.hero-city-watermark{position:absolute;right:34%;bottom:-35px;max-width:48%;overflow:hidden;color:rgba(27,66,73,.045);font:900 clamp(80px,10vw,150px)/1 'Noto Serif JP';white-space:nowrap;pointer-events:none}
+
+.trip-library{min-height:calc(100vh - 82px);padding:64px 6% 80px;background:rgba(250,247,240,.72);border:1px solid var(--line);border-top:0}
+.trip-library-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:36px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.trip-library-heading>div>span,.new-trip-intro span{color:var(--red);font-size:9px;font-weight:700;letter-spacing:.2em}
+.trip-library-heading h1{margin:7px 0 4px;color:var(--ink);font:700 clamp(35px,5vw,54px)/1.1 'Noto Serif JP'}
+.trip-library-heading p{margin:0;color:#7b8581;font-size:13px}
+.trip-library-heading .primary-btn{flex:0 0 auto;background:var(--ink);padding:13px 20px}
+
+.new-trip-form{display:grid;grid-template-columns:1.15fr repeat(2,minmax(120px,.75fr)) repeat(2,minmax(130px,.7fr)) 130px;gap:14px;align-items:end;margin-bottom:34px;padding:22px;background:#efe6d9;border-left:4px solid var(--red);box-shadow:6px 7px 0 rgba(23,63,72,.06)}
+.new-trip-intro{grid-column:1/-1;display:flex;align-items:baseline;gap:12px;margin-bottom:2px}
+.new-trip-intro strong{color:var(--ink);font:700 18px 'Noto Serif JP'}
+.new-trip-form label{min-width:0;color:#687571;font-size:8px;font-weight:700;letter-spacing:.13em}
+.new-trip-form label small{color:#a09b91;font-size:7px}
+.new-trip-form input{display:block;width:100%;height:42px;margin-top:6px;padding:0 11px;border:1px solid #cbbdab;background:#fffdf8;color:#263c3d;font-size:12px;letter-spacing:0;outline:0}
+.new-trip-form input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(223,73,56,.08)}
+.new-trip-form>button{height:42px;border:0;background:var(--ink);color:#fff;font-size:11px;font-weight:700}
+.new-trip-form>button:hover{background:var(--red)}
+.new-trip-form>button:disabled{opacity:.6}
+.trip-library-error{margin:-15px 0 24px;padding:11px 13px;background:#f7ded8;color:#a73b2f;font-size:12px}
+.trip-list-section{margin-top:35px}.trip-list-section:first-of-type{margin-top:0}
+.trip-list-section-title{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.trip-list-section-title span{color:var(--red);font-size:8px;font-weight:700;letter-spacing:.17em}
+.trip-list-section-title h2{margin:4px 0 0;color:var(--ink);font:700 22px 'Noto Serif JP'}
+.trip-list-section-title>strong{display:grid;place-items:center;width:29px;height:29px;border-radius:50%;background:#e9dfd1;color:var(--ink);font-size:11px}
+.invited-trip-section{margin-top:50px}.invited-trip-section .trip-card{border-top:3px solid #879995}.invited-trip-section .trip-list-section-title span{color:#637b78}
+
+.trip-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.trip-card{position:relative;min-height:225px;padding:25px 24px 22px;overflow:hidden;background:#fffdf8;border:1px solid #d8cebf;box-shadow:6px 7px 0 #e5dccf}
+.trip-card:after{content:'旅';position:absolute;right:-10px;bottom:-35px;color:rgba(23,63,72,.04);font:900 115px 'Noto Serif JP';pointer-events:none}
+.trip-card.completed{background:#f1eee7;box-shadow:none}
+.trip-card.completed:after{content:'済'}
+.trip-card-topline{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:#9b4a3d;font-size:8px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}
+.trip-card-topline>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip-card-topline b{flex:0 0 auto;padding:5px 8px;background:#eee5d8;color:#6d7773;font-size:7px;letter-spacing:.1em}
+.trip-card.active .trip-card-topline b{background:#e4eddf;color:#547044}
+.trip-card.completed .trip-card-topline b{background:#dde3df;color:#53645d}
+.trip-card h2{position:relative;z-index:1;margin:25px 0 6px;color:var(--ink);font:700 25px/1.2 'Noto Serif JP'}
+.trip-card p{position:relative;z-index:1;margin:0;color:#858c87;font-size:11px}
+.trip-card>button{position:absolute;z-index:2;left:24px;right:24px;bottom:20px;display:flex;justify-content:space-between;border:0;border-top:1px solid #d9d0c3;background:transparent;color:var(--ink);padding:13px 0 0;text-align:left;font-size:10px;font-weight:700;letter-spacing:.08em}
+.trip-card>button:hover{color:var(--red)}
+.trip-card>button:disabled{opacity:.55}
+.trip-library-empty{grid-column:1/-1;padding:70px 20px;text-align:center;color:#858c87;border:1px dashed #cfc3b3}
+.trip-library-empty>span{display:grid;place-items:center;width:52px;height:52px;margin:auto;border-radius:50%;background:var(--red);color:#fff;font:700 24px 'Noto Serif JP'}
+.trip-library-empty h2{margin:14px 0 5px;color:var(--ink);font:700 25px 'Noto Serif JP'}
+.trip-library-empty p{margin:0;font-size:12px}
+
+@media(max-width:980px){.new-trip-form{grid-template-columns:repeat(2,minmax(0,1fr))}.new-trip-form>button{grid-column:1/-1}.trip-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.hero-city-watermark{display:none}.trip-library{min-height:calc(100vh - 66px);padding:38px 18px 55px}.trip-library-heading{align-items:flex-start;flex-direction:column;margin-bottom:25px}.trip-library-heading .primary-btn{width:100%}.new-trip-form{grid-template-columns:1fr;padding:18px 15px}.new-trip-intro{align-items:flex-start;flex-direction:column;gap:5px}.new-trip-form>button{grid-column:auto}.trip-card-grid{grid-template-columns:1fr}.trip-card{min-height:210px}.trip-list-btn{padding:7px 10px}}

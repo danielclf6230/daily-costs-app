@@ -1,21 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  addUserToGroup,
   changePassword,
   createAdminUser,
   createInvite,
+  createTrip,
   deleteAdminUser,
   loadAdminOverview,
   loadMembers,
   loadTrip,
-  moveUserToGroup,
+  loadTrips,
+  removeUserFromGroup,
   resetUserPassword,
   saveTrip,
+  selectActiveTrip,
+  updateAvatar,
 } from "./api";
-import { getUser, logout } from "./auth";
+import { getUser, logout, setUser } from "./auth";
 
 const emptyTrip = {
-  tripName: "Our Tokyo Adventure",
+  tripName: "My Adventure",
+  country: "",
+  city: "",
   startDate: "",
   endDate: "",
   shopping: [],
@@ -86,6 +93,36 @@ function countdown(target, now) {
   return { days, hours, minutes };
 }
 
+function tripIsCompleted(trip, today = localDate()) {
+  return Boolean(trip?.endDate && today > trip.endDate);
+}
+
+function resizeAvatar(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      const size = Math.min(image.naturalWidth, image.naturalHeight);
+      const sourceX = (image.naturalWidth - size) / 2;
+      const sourceY = (image.naturalHeight - size) / 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 512;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#faf7f0";
+      context.fillRect(0, 0, 512, 512);
+      context.drawImage(image, sourceX, sourceY, size, size, 0, 0, 512, 512);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", 0.84));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("That image could not be read."));
+    };
+    image.src = objectUrl;
+  });
+}
+
 const Icon = ({ name }) => {
   const icons = { shop: "買いもの", plan: "予定", wheel: "くじ", note: "メモ" };
   return (
@@ -98,7 +135,14 @@ const Icon = ({ name }) => {
 export default function TripToolsApp() {
   const nav = useNavigate();
   const user = getUser();
+  const [account, setAccount] = useState(user);
+  const userId = account?.id;
   const [trip, setTrip] = useState(emptyTrip);
+  const [tripId, setTripId] = useState(null);
+  const [tripList, setTripList] = useState([]);
+  const [view, setView] = useState("trip");
+  const [canCreateTrips, setCanCreateTrips] = useState(false);
+  const [canManageUsers, setCanManageUsers] = useState(false);
   const [tab, setTab] = useState("schedule");
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState("Loading…");
@@ -117,19 +161,46 @@ export default function TripToolsApp() {
   const [manageOpen, setManageOpen] = useState(false);
   const [canInvite, setCanInvite] = useState(false);
   const firstLoad = useRef(true);
+  const viewingCompletedTrip = useRef(false);
 
   useEffect(() => {
-    loadTrip()
-      .then((data) => {
-        setTrip(data.trip ? { ...emptyTrip, ...data.trip } : emptyTrip);
-        setCanInvite(data.canInvite);
-      })
-      .catch((error) => setSaveState(`Offline: ${error.message}`))
-      .finally(() => {
+    async function prepareTrips() {
+      try {
+        const data = await loadTrips();
+        setTripList(data.trips);
+        setCanCreateTrips(data.canCreate);
+        setCanManageUsers(data.canManage);
+        const storageKey = `trip-tools-active-trip-${userId || "account"}`;
+        const storedView = localStorage.getItem(storageKey);
+        const savedId = Number(storedView);
+        const activeId = data.activeTripId || savedId;
+        const savedTrip = data.trips.find((item) => item.id === activeId);
+        const onlyCurrentTrip = storedView !== "list" && data.trips.length === 1 && !tripIsCompleted(data.trips[0])
+          ? data.trips[0]
+          : null;
+        const initialTrip = savedTrip && !tripIsCompleted(savedTrip)
+          ? savedTrip
+          : onlyCurrentTrip;
+        if (initialTrip) {
+          const selected = await loadTrip(initialTrip.id);
+          setTripId(selected.id);
+          setTrip(selected.trip ? { ...emptyTrip, ...selected.trip } : emptyTrip);
+          setCanInvite(selected.canInvite);
+          setView("trip");
+        } else {
+          localStorage.setItem(storageKey, "list");
+          setView("list");
+          setSaveState("Trips ready");
+        }
+      } catch (error) {
+        setSaveState(`Offline: ${error.message}`);
+      } finally {
         setLoaded(true);
         firstLoad.current = false;
-      });
-  }, []);
+      }
+    }
+    prepareTrips();
+  }, [userId]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
@@ -137,15 +208,20 @@ export default function TripToolsApp() {
   }, []);
 
   useEffect(() => {
-    if (!loaded || firstLoad.current) return undefined;
+    if (!loaded || firstLoad.current || view !== "trip" || !tripId) return undefined;
     setSaveState("Saving…");
     const timer = setTimeout(() => {
-      saveTrip(trip)
-        .then(() => setSaveState("Saved"))
+      saveTrip(tripId, trip)
+        .then(() => {
+          setSaveState("Saved");
+          setTripList((current) => current.map((item) => item.id === tripId
+            ? { ...item, tripName: trip.tripName, country: trip.country, city: trip.city, startDate: trip.startDate, endDate: trip.endDate }
+            : item));
+        })
         .catch((error) => setSaveState(`Not saved: ${error.message}`));
     }, 650);
     return () => clearTimeout(timer);
-  }, [trip, loaded]);
+  }, [trip, tripId, loaded, view]);
 
   const todayLocal = localDate(now);
   const localTimezone =
@@ -184,6 +260,69 @@ export default function TripToolsApp() {
   const tripCountdown = beforeTrip
     ? countdown(dateAt(trip.startDate), now)
     : null;
+
+  async function refreshTrips() {
+    const data = await loadTrips();
+    setTripList(data.trips);
+    setCanCreateTrips(data.canCreate);
+    setCanManageUsers(data.canManage);
+    return data.trips;
+  }
+
+  async function openTripProfile(id) {
+    setSaveState("Loading…");
+    await selectActiveTrip(id);
+    const selected = await loadTrip(id);
+    viewingCompletedTrip.current = tripIsCompleted(
+      tripList.find((item) => item.id === id) || selected.trip,
+    );
+    setTripId(selected.id);
+    setTrip(selected.trip ? { ...emptyTrip, ...selected.trip } : emptyTrip);
+    setCanInvite(selected.canInvite);
+    setInvite("");
+    setView("trip");
+    setSaveState("Saved");
+    localStorage.setItem(
+      `trip-tools-active-trip-${userId || "account"}`,
+      String(selected.id),
+    );
+  }
+
+  async function showTripList() {
+    try {
+      await refreshTrips();
+      viewingCompletedTrip.current = false;
+      await selectActiveTrip(null);
+      localStorage.setItem(`trip-tools-active-trip-${userId || "account"}`, "list");
+      setView("list");
+      setSaveState("Trips ready");
+    } catch (error) {
+      setSaveState(`Offline: ${error.message}`);
+    }
+  }
+
+  async function addTripProfile(values) {
+    const created = await createTrip(values);
+    await refreshTrips();
+    await openTripProfile(created.id);
+  }
+
+  useEffect(() => {
+    if (!loaded || view !== "trip" || !tripId || !tripEnded || viewingCompletedTrip.current) return undefined;
+    const timer = setTimeout(async () => {
+      try {
+        await saveTrip(tripId, trip);
+        await refreshTrips();
+        await selectActiveTrip(null);
+        localStorage.setItem(`trip-tools-active-trip-${userId || "account"}`, "list");
+        setView("list");
+        setSaveState("Trip completed");
+      } catch (error) {
+        setSaveState(`Not saved: ${error.message}`);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [loaded, view, tripId, tripEnded, trip, userId]);
 
   function updateTripDates(startDate, endDate) {
     const dates = datesBetween(startDate, endDate);
@@ -242,7 +381,7 @@ export default function TripToolsApp() {
   async function openSharing() {
     setShareOpen(true);
     try {
-      setMembers(await loadMembers());
+      setMembers(await loadMembers(tripId));
     } catch {
       setMembers([]);
     }
@@ -250,7 +389,7 @@ export default function TripToolsApp() {
 
   async function makeInvite() {
     try {
-      const result = await createInvite();
+      const result = await createInvite(tripId);
       setInvite(result.code);
     } catch (error) {
       setInvite(error.message);
@@ -272,7 +411,11 @@ export default function TripToolsApp() {
           <span className="brand-mark">タビ</span>
           <div>
             <strong>TRIP TOOLS</strong>
-            <small>日本の旅 · JAPAN</small>
+            <small>
+              {view === "trip" && (trip.city || trip.country)
+                ? [trip.city, trip.country].filter(Boolean).join(" · ").toUpperCase()
+                : "YOUR JOURNEYS · 旅"}
+            </small>
           </div>
         </div>
         <div className="header-actions">
@@ -281,12 +424,17 @@ export default function TripToolsApp() {
           >
             {saveState}
           </span>
-          {canInvite && (
+          {view === "trip" && (tripList.length > 1 || canCreateTrips) && (
+            <button className="share-btn trip-list-btn" onClick={showTripList}>
+              All trips
+            </button>
+          )}
+          {view === "trip" && canInvite && (
             <button className="share-btn" onClick={openSharing}>
               ＋ Invite
             </button>
           )}
-          {user?.role === "admin" && (
+          {canManageUsers && (
             <button
               className="manage-users-btn"
               onClick={() => setManageOpen(true)}
@@ -299,10 +447,10 @@ export default function TripToolsApp() {
             onClick={() => setProfileOpen(true)}
             title="Account and password"
           >
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" />
+            {account?.avatarUrl ? (
+              <img src={account.avatarUrl} alt="" />
             ) : (
-              (user?.name || "T")[0].toUpperCase()
+              (account?.name || "T")[0].toUpperCase()
             )}
           </button>
           <button
@@ -317,12 +465,25 @@ export default function TripToolsApp() {
         </div>
       </header>
 
+      {view === "list" ? (
+        <TripList
+          trips={tripList}
+          canCreate={canCreateTrips}
+          onOpen={openTripProfile}
+          onCreate={addTripProfile}
+        />
+      ) : (
+        <>
       <section className="trip-hero">
         <div className="sun-disc" aria-hidden="true" />
+        <span className="hero-city-watermark" aria-hidden="true">
+          {trip.city || "旅"}
+        </span>
         <div className="hero-copy">
-          <label className="eyebrow">
-            YOUR NEXT JOURNEY <span>次の旅</span>
-          </label>
+          <div className="eyebrow">
+            {[trip.city, trip.country].filter(Boolean).join(" · ") || "YOUR NEXT JOURNEY"}
+            <span>次の旅</span>
+          </div>
           <input
             className="trip-name"
             value={trip.tripName}
@@ -447,6 +608,8 @@ export default function TripToolsApp() {
       <footer>
         <span>旅は道連れ</span> · A journey is better with company
       </footer>
+        </>
+      )}
       {shareOpen && (
         <div
           className="winner-modal share-modal"
@@ -495,7 +658,12 @@ export default function TripToolsApp() {
       )}
       {profileOpen && (
         <PasswordModal
-          user={user}
+          user={account}
+          onUserUpdate={(updates) => {
+            const updatedUser = { ...account, ...updates };
+            setAccount(updatedUser);
+            setUser(updatedUser);
+          }}
           onClose={() => setProfileOpen(false)}
           onLogout={() => {
             logout();
@@ -503,19 +671,223 @@ export default function TripToolsApp() {
           }}
         />
       )}
-      {manageOpen && user?.role === "admin" && (
-        <AdminManager currentUser={user} onClose={() => setManageOpen(false)} />
+      {manageOpen && canManageUsers && (
+        <AdminManager currentUser={account} onClose={() => setManageOpen(false)} />
       )}
     </main>
   );
 }
 
-function PasswordModal({ user, onClose, onLogout }) {
+function TripList({ trips, canCreate, onOpen, onCreate }) {
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    tripName: "",
+    country: "",
+    city: "",
+    startDate: "",
+    endDate: "",
+  });
+  const today = localDate();
+  const ownedTrips = trips.filter((item) => item.role === "owner");
+  const invitedTrips = trips.filter((item) => item.role !== "owner");
+
+  function statusFor(item) {
+    if (tripIsCompleted(item, today)) return { label: "Completed", className: "completed" };
+    if (item.startDate && item.endDate && today >= item.startDate && today <= item.endDate)
+      return { label: "In progress", className: "active" };
+    if (item.startDate && today < item.startDate)
+      return { label: "Upcoming", className: "upcoming" };
+    return { label: "Planning", className: "planning" };
+  }
+
+  async function open(id) {
+    setBusy(`open-${id}`);
+    setError("");
+    try {
+      await onOpen(id);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy("create");
+    setError("");
+    try {
+      await onCreate(form);
+      setForm({ tripName: "", country: "", city: "", startDate: "", endDate: "" });
+      setCreating(false);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function tripCards(items) {
+    return items.map((item) => {
+      const status = statusFor(item);
+      return (
+        <article className={`trip-card ${status.className}`} key={item.id}>
+          <div className="trip-card-topline">
+            <span>{[item.city, item.country].filter(Boolean).join(" · ") || "Destination pending"}</span>
+            <b>{status.label}</b>
+          </div>
+          <h2>{item.tripName}</h2>
+          <p>
+            {item.startDate && item.endDate
+              ? `${prettyDate(item.startDate, { year: true })} — ${prettyDate(item.endDate, { year: true })}`
+              : "Dates not set"}
+          </p>
+          <button disabled={busy === `open-${item.id}`} onClick={() => open(item.id)}>
+            {status.className === "completed" ? "View memories" : "Open trip"} <span>→</span>
+          </button>
+        </article>
+      );
+    });
+  }
+
+  return (
+    <section className="trip-library">
+      <div className="trip-library-heading">
+        <div>
+          <span>YOUR JOURNEYS · 旅の記録</span>
+          <h1>Trip list</h1>
+          <p>Open an upcoming journey or revisit a completed one.</p>
+        </div>
+        {canCreate && (
+          <button className="primary-btn" onClick={() => setCreating((value) => !value)}>
+            {creating ? "Cancel" : "＋ New trip"}
+          </button>
+        )}
+      </div>
+
+      {creating && (
+        <form className="new-trip-form" onSubmit={submit}>
+          <div className="new-trip-intro">
+            <span>NEW JOURNEY</span>
+            <strong>Where are you going next?</strong>
+          </div>
+          <label>
+            TRIP NAME <small>OPTIONAL</small>
+            <input
+              value={form.tripName}
+              onChange={(event) => setForm({ ...form, tripName: event.target.value })}
+              placeholder="e.g. Summer in Paris"
+            />
+          </label>
+          <label>
+            COUNTRY
+            <input
+              value={form.country}
+              onChange={(event) => setForm({ ...form, country: event.target.value })}
+              placeholder="Country"
+              required
+            />
+          </label>
+          <label>
+            CITY
+            <input
+              value={form.city}
+              onChange={(event) => setForm({ ...form, city: event.target.value })}
+              placeholder="City"
+              required
+            />
+          </label>
+          <label>
+            FROM
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(event) => setForm({ ...form, startDate: event.target.value })}
+              required
+            />
+          </label>
+          <label>
+            TO
+            <input
+              type="date"
+              min={form.startDate}
+              value={form.endDate}
+              onChange={(event) => setForm({ ...form, endDate: event.target.value })}
+              required
+            />
+          </label>
+          <button disabled={busy === "create"}>
+            {busy === "create" ? "Creating…" : "Create trip →"}
+          </button>
+        </form>
+      )}
+
+      {error && <div className="trip-library-error">{error}</div>}
+
+      {ownedTrips.length > 0 && (
+        <section className="trip-list-section">
+          <div className="trip-list-section-title">
+            <div><span>OWNER</span><h2>Trips you own</h2></div>
+            <strong>{ownedTrips.length}</strong>
+          </div>
+          <div className="trip-card-grid">{tripCards(ownedTrips)}</div>
+        </section>
+      )}
+
+      {invitedTrips.length > 0 && (
+        <section className="trip-list-section invited-trip-section">
+          <div className="trip-list-section-title">
+            <div><span>SHARED WITH YOU</span><h2>Invited trips</h2></div>
+            <strong>{invitedTrips.length}</strong>
+          </div>
+          <div className="trip-card-grid">{tripCards(invitedTrips)}</div>
+        </section>
+      )}
+
+      {!trips.length && (
+        <div className="trip-card-grid">
+          <div className="trip-library-empty">
+            <span>旅</span>
+            <h2>No trips yet</h2>
+            <p>{canCreate ? "Create your first journey to begin planning." : "A group owner can create the first journey."}</p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PasswordModal({ user, onClose, onLogout, onUserUpdate }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [status, setStatus] = useState({ type: "", text: "" });
   const [saving, setSaving] = useState(false);
+  const [avatarSaving, setAvatarSaving] = useState(false);
+
+  async function changeAvatar(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) {
+      setStatus({ type: "error", text: "Choose an image smaller than 8 MB." });
+      return;
+    }
+    setAvatarSaving(true);
+    setStatus({ type: "", text: "" });
+    try {
+      const avatarUrl = await resizeAvatar(file);
+      await updateAvatar(avatarUrl);
+      onUserUpdate({ avatarUrl });
+      setStatus({ type: "success", text: "Profile photo updated." });
+    } catch (error) {
+      setStatus({ type: "error", text: error.message || "Could not update the photo." });
+    } finally {
+      setAvatarSaving(false);
+    }
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -555,13 +927,15 @@ function PasswordModal({ user, onClose, onLogout }) {
       >
         <header>
           <div className="account-person">
-            <div className="account-avatar">
+            <label className={`account-avatar avatar-upload ${avatarSaving ? "saving" : ""}`} title="Upload profile photo">
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" />
               ) : (
                 (user?.name || "T")[0].toUpperCase()
               )}
-            </div>
+              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={changeAvatar} disabled={avatarSaving} />
+              <span>{avatarSaving ? "…" : "✎"}</span>
+            </label>
             <div>
               <small>TRAVELER ACCOUNT · アカウント</small>
               <strong>{user?.name}</strong>
@@ -695,7 +1069,7 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="What do you need for Japan?"
+            placeholder={`What do you need for ${trip.city || "your trip"}?`}
           />
         </label>
         <button>
@@ -791,6 +1165,7 @@ function Schedule({
       <ActiveDay
         day={activeDay}
         index={activeIndex}
+        destination={trip.city || trip.country || "YOUR TRIP"}
         updateDay={updateDay}
         onPlan={() => setPlanning(true)}
       />
@@ -836,7 +1211,7 @@ function Schedule({
         text={
           ended
             ? `${visited} of ${allStops.length} places visited.`
-            : "Shape each day, then let Trip Tools guide you in Japan."
+            : `Shape each day, then let Trip Tools guide you in ${trip.city || "your destination"}.`
         }
         action={
           planning ? (
@@ -949,7 +1324,7 @@ function DayEditor({ day, index, updateDay }) {
   );
 }
 
-function ActiveDay({ day, index, updateDay, onPlan }) {
+function ActiveDay({ day, index, destination, updateDay, onPlan }) {
   const done = day.items.filter((item) => item.checked).length;
   const toggle = (id, checked) =>
     updateDay(day.id, (value) => ({
@@ -961,7 +1336,7 @@ function ActiveDay({ day, index, updateDay, onPlan }) {
   return (
     <>
       <SectionTitle
-        eyebrow="TODAY IN JAPAN · 今日"
+        eyebrow={`TODAY IN ${destination.toUpperCase()} · 今日`}
         title={`Day ${index + 1} · ${prettyDate(day.date, { weekday: true })}`}
         text={`${done} of ${day.items.length} locations visited. Check them off as you go.`}
         action={
@@ -1163,7 +1538,7 @@ function Notes({ trip, setTrip }) {
           value={trip.notes}
           onChange={(e) => setTrip({ ...trip, notes: e.target.value })}
           placeholder={
-            "Start writing…\n\nHotel address, reservation numbers, useful Japanese phrases, or anything else for the trip."
+            "Start writing…\n\nHotel address, reservation numbers, useful phrases, or anything else for the trip."
           }
         />
         <div className="note-meta">
@@ -1176,13 +1551,13 @@ function Notes({ trip, setTrip }) {
 }
 
 function AdminManager({ currentUser, onClose }) {
-  const [overview, setOverview] = useState({ users: [], groups: [] });
+  const [overview, setOverview] = useState({ users: [], groups: [], isAdmin: false });
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [resets, setResets] = useState({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
-  const [draggingUserId, setDraggingUserId] = useState(null);
+  const [dragging, setDragging] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
   const refresh = () =>
     loadAdminOverview()
@@ -1223,23 +1598,13 @@ function AdminManager({ currentUser, onClose }) {
     }
   }
 
-  async function move(account, value, askForConfirmation = true) {
-    const groupId = value === "new" ? null : Number(value);
-    const target = groupId
-      ? overview.groups.find((group) => group.id === groupId)?.name
-      : "a new private group";
-    if (
-      askForConfirmation &&
-      !window.confirm(
-        `Move ${account.name} to ${target}? Their visible trip data will change immediately.`,
-      )
-    )
-      return;
-    setBusy(`move-${account.id}`);
+  async function addToGroup(account, groupId) {
+    const target = overview.groups.find((group) => group.id === groupId);
+    setBusy(`add-${account.id}-${groupId}`);
     setMessage("");
     try {
-      await moveUserToGroup(account.id, groupId);
-      setMessage(`${account.name}'s group was updated.`);
+      await addUserToGroup(account.id, groupId);
+      setMessage(`${account.name} can now access ${target?.name || "the trip"}.`);
       await refresh();
     } catch (error) {
       setMessage(error.message);
@@ -1248,20 +1613,59 @@ function AdminManager({ currentUser, onClose }) {
     }
   }
 
-  function startDrag(event, userId) {
-    setDraggingUserId(userId);
-    event.dataTransfer.effectAllowed = "move";
+  async function removeFromGroup(account, groupId) {
+    const target = overview.groups.find((group) => group.id === groupId);
+    setBusy(`remove-${account.id}-${groupId}`);
+    setMessage("");
+    try {
+      await removeUserFromGroup(account.id, groupId);
+      setMessage(`${account.name} was removed from ${target?.name || "the trip"}.`);
+      await refresh();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function startDrag(event, userId, sourceGroupId = null, membershipRole = null) {
+    const payload = { userId, sourceGroupId, membershipRole };
+    setDragging(payload);
+    event.dataTransfer.effectAllowed = "copyMove";
+    event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.setData("text/plain", String(userId));
   }
 
   async function dropIntoGroup(event, groupId) {
     event.preventDefault();
-    const userId = Number(event.dataTransfer.getData("text/plain") || draggingUserId);
+    let payload = dragging;
+    try {
+      payload = JSON.parse(event.dataTransfer.getData("application/json")) || payload;
+    } catch {
+      payload = { userId: Number(event.dataTransfer.getData("text/plain")) };
+    }
+    const userId = Number(payload?.userId);
     const account = overview.users.find((user) => user.id === userId);
-    setDraggingUserId(null);
+    const target = overview.groups.find((group) => group.id === groupId);
+    setDragging(null);
     setDragTarget(null);
-    if (!account || (groupId && account.trip_id === groupId)) return;
-    await move(account, groupId === null ? "new" : String(groupId), false);
+    if (!account || target?.members.some((member) => member.id === userId)) return;
+    await addToGroup(account, groupId);
+  }
+
+  async function dropToRemove(event) {
+    event.preventDefault();
+    let payload = dragging;
+    try {
+      payload = JSON.parse(event.dataTransfer.getData("application/json")) || payload;
+    } catch {
+      payload = null;
+    }
+    setDragging(null);
+    setDragTarget(null);
+    if (!payload?.sourceGroupId || payload.membershipRole === "owner") return;
+    const account = overview.users.find((user) => user.id === Number(payload.userId));
+    if (account) await removeFromGroup(account, Number(payload.sourceGroupId));
   }
 
   async function remove(account) {
@@ -1297,16 +1701,16 @@ function AdminManager({ currentUser, onClose }) {
       >
         <header>
           <div>
-            <small>ADMINISTRATION · ユーザー管理</small>
+            <small>{overview.isAdmin ? "ADMINISTRATION" : "TRIP OWNER"} · ユーザー管理</small>
             <h2 id="manager-title">Manage users & groups</h2>
-            <p>Each group has completely separate trip data.</p>
+            <p>Each group is one trip. A traveler can belong to several groups.</p>
           </div>
           <button onClick={onClose} aria-label="Close user manager">
             ×
           </button>
         </header>
         <div className="manager-content">
-          <form className="manager-create" onSubmit={create}>
+          {overview.isAdmin && <form className="manager-create" onSubmit={create}>
             <div>
               <span>CREATE A GROUP OWNER</span>
               <strong>New traveler</strong>
@@ -1333,7 +1737,7 @@ function AdminManager({ currentUser, onClose }) {
             <button disabled={busy === "create"}>
               {busy === "create" ? "Creating…" : "Create user + group"}
             </button>
-          </form>
+          </form>}
           {message && <div className="manager-message">{message}</div>}
           <section className="group-overview">
             <div className="manager-section-title">
@@ -1341,9 +1745,9 @@ function AdminManager({ currentUser, onClose }) {
               <strong>{overview.groups.length}</strong>
             </div>
             <p className="drag-help">
-              Drag a traveler into another group. Changes save immediately.
+              Drag a traveler from the user list into a trip to add access. This does not remove their other trips.
             </p>
-            <div className={`group-board ${draggingUserId ? "is-dragging" : ""}`}>
+            <div className={`group-board ${dragging ? "is-dragging" : ""}`}>
               {overview.groups.map((group) => (
                 <div
                   className={`group-dropzone ${dragTarget === group.id ? "drag-over" : ""}`}
@@ -1364,11 +1768,11 @@ function AdminManager({ currentUser, onClose }) {
                       <button
                         type="button"
                         draggable
-                        className={`member-drag-chip ${draggingUserId === member.id ? "dragging" : ""}`}
-                        key={member.id}
-                        onDragStart={(event) => startDrag(event, member.id)}
-                        onDragEnd={() => { setDraggingUserId(null); setDragTarget(null); }}
-                        title="Drag to another group"
+                        className={`member-drag-chip ${dragging?.userId === member.id && dragging?.sourceGroupId === group.id ? "dragging" : ""}`}
+                        key={`${group.id}-${member.id}`}
+                        onDragStart={(event) => startDrag(event, member.id, group.id, member.role)}
+                        onDragEnd={() => { setDragging(null); setDragTarget(null); }}
+                        title={member.role === "owner" ? "Owner of this trip" : "Drag to the remove zone or another trip"}
                       >
                         <i>⠿</i><span>{member.name}</span>{member.role === "owner" && <b>OWNER</b>}
                       </button>
@@ -1377,22 +1781,32 @@ function AdminManager({ currentUser, onClose }) {
                   </div>
                 </div>
               ))}
-              <div
-                className={`group-dropzone new-group-dropzone ${dragTarget === "new" ? "drag-over" : ""}`}
-                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragTarget("new"); }}
-                onDrop={(event) => dropIntoGroup(event, null)}
-              >
-                <strong>＋</strong><b>New private group</b><small>Drop a traveler here to make them the owner</small>
-              </div>
             </div>
+            {dragging?.sourceGroupId && dragging.membershipRole !== "owner" && (
+              <div
+                className={`remove-member-dropzone ${dragTarget === "remove" ? "drag-over" : ""}`}
+                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragTarget("remove"); }}
+                onDrop={dropToRemove}
+              >
+                <strong>Remove from this trip</strong>
+                <small>Drop here to remove only this group membership.</small>
+              </div>
+            )}
           </section>
           <section className="managed-users">
             <div className="manager-section-title">
-              <span>ALL USERS</span>
+              <span>{overview.isAdmin ? "ALL USERS" : "YOUR GROUP TRAVELERS"}</span>
               <strong>{overview.users.length}</strong>
             </div>
             {overview.users.map((account) => (
-              <article className="managed-user" key={account.id}>
+              <article
+                className={`managed-user draggable-user ${overview.isAdmin ? "" : "owner-user-row"}`}
+                key={account.id}
+                draggable
+                onDragStart={(event) => startDrag(event, account.id)}
+                onDragEnd={() => { setDragging(null); setDragTarget(null); }}
+                title="Drag this traveler into a trip"
+              >
                 <div className="managed-identity">
                   <i>{account.name[0].toUpperCase()}</i>
                   <div>
@@ -1400,28 +1814,13 @@ function AdminManager({ currentUser, onClose }) {
                     <small>
                       {account.role === "admin"
                         ? "Administrator"
-                        : account.membership_role === "owner"
-                          ? "Group owner · can invite"
-                          : "Invited member · cannot invite"}
+                        : Number(account.owned_group_count) > 0
+                          ? `Owner of ${account.owned_group_count} trip${Number(account.owned_group_count) === 1 ? "" : "s"}`
+                          : `Invited to ${account.group_count} trip${Number(account.group_count) === 1 ? "" : "s"}`}
                     </small>
                   </div>
                 </div>
-                <label className="group-select">
-                  GROUP
-                  <select
-                    value={account.trip_id || ""}
-                    disabled={busy === `move-${account.id}`}
-                    onChange={(event) => move(account, event.target.value)}
-                  >
-                    {overview.groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}
-                      </option>
-                    ))}
-                    <option value="new">＋ Create new private group</option>
-                  </select>
-                </label>
-                <div className="managed-actions">
+                {overview.isAdmin && <div className="managed-actions">
                   <div className="reset-box">
                     <input
                       type="password"
@@ -1453,13 +1852,12 @@ function AdminManager({ currentUser, onClose }) {
                   {account.id === currentUser.id && (
                     <span className="delete-placeholder" aria-hidden="true" />
                   )}
-                </div>
+                </div>}
               </article>
             ))}
           </section>
           <p className="manager-footnote">
-            ★ Group owners can create invitation codes. Invited members cannot
-            invite others.
+            ★ Owners manage only their own trips. Adding a traveler preserves all of their existing trip access.
           </p>
         </div>
       </section>
