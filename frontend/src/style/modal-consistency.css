@@ -12,6 +12,7 @@
 
 /* Clear, touch-friendly profile photo edit control. */
 .avatar-upload{transition:box-shadow .18s ease}
+.avatar-upload>img{border-radius:50%;clip-path:circle(50% at 50% 50%)}
 .avatar-upload input{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none}
 .avatar-upload>.avatar-edit-badge{right:-7px;bottom:-5px;width:25px;height:25px;border-width:2px;box-shadow:0 2px 6px rgba(32,44,45,.22)}
 .avatar-edit-badge svg{display:block;width:13px;height:13px;fill:currentColor}
