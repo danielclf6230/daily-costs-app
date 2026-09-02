@@ -61,6 +61,10 @@ const TripSchema = z.object({
   city: z.string().max(80).default(""),
   startDate: date,
   endDate: date,
+  shoppingCurrency: z
+    .enum(["CAD", "USD", "EUR", "GBP", "JPY", "CNY", "AUD", "NZD", "CHF", "HKD", "SGD", "KRW", "INR", "MXN", "BRL", "AED", "THB", "PHP"])
+    .optional()
+    .default("CAD"),
   shoppingBudget: z.number().min(0).max(1000000000).optional().default(0),
   shopping: z
     .array(z.object({
@@ -360,6 +364,7 @@ app.post("/api/admin/users", async (req, res) => {
       city: "",
       startDate: "",
       endDate: "",
+      shoppingCurrency: "CAD",
       shoppingBudget: 0,
       shopping: [],
       days: [],
@@ -800,6 +805,7 @@ app.post("/api/trips", async (req, res) => {
       city: values.city,
       startDate: values.startDate,
       endDate: values.endDate,
+      shoppingCurrency: "CAD",
       shoppingBudget: 0,
       shopping: [],
       days: tripDays(values.startDate, values.endDate),

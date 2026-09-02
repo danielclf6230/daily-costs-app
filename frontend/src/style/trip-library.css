@@ -28,9 +28,9 @@
 
 .trip-card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .trip-card{position:relative;min-height:225px;padding:25px 24px 22px;overflow:hidden;background:#fffdf8;border:1px solid #d8cebf;box-shadow:6px 7px 0 #e5dccf}
-.trip-card:after{content:'旅';position:absolute;right:-10px;bottom:-35px;color:rgba(23,63,72,.04);font:900 115px 'Noto Serif JP';pointer-events:none}
+.trip-card:after{content:'GO';position:absolute;right:-10px;bottom:-35px;color:rgba(23,63,72,.04);font:900 105px 'Noto Serif JP';pointer-events:none}
 .trip-card.completed{background:#f1eee7;box-shadow:none}
-.trip-card.completed:after{content:'済'}
+.trip-card.completed:after{content:'DONE';font-size:68px;bottom:-18px}
 .trip-card-topline{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:#9b4a3d;font-size:8px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}
 .trip-card-topline>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .trip-card-status-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}

@@ -25,6 +25,7 @@ const emptyTrip = {
   city: "",
   startDate: "",
   endDate: "",
+  shoppingCurrency: "CAD",
   shoppingBudget: 0,
   shopping: [],
   days: [],
@@ -33,6 +34,26 @@ const emptyTrip = {
 };
 
 const makeId = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+const SHOPPING_CURRENCIES = [
+  ["CAD", "Canadian Dollar"],
+  ["USD", "US Dollar"],
+  ["EUR", "Euro"],
+  ["GBP", "British Pound"],
+  ["JPY", "Japanese Yen"],
+  ["CNY", "Chinese Yuan"],
+  ["AUD", "Australian Dollar"],
+  ["NZD", "New Zealand Dollar"],
+  ["CHF", "Swiss Franc"],
+  ["HKD", "Hong Kong Dollar"],
+  ["SGD", "Singapore Dollar"],
+  ["KRW", "South Korean Won"],
+  ["INR", "Indian Rupee"],
+  ["MXN", "Mexican Peso"],
+  ["BRL", "Brazilian Real"],
+  ["AED", "UAE Dirham"],
+  ["THB", "Thai Baht"],
+  ["PHP", "Philippine Peso"],
+];
 const emptyStop = () => ({
   id: makeId(),
   place: "",
@@ -125,7 +146,7 @@ function resizeAvatar(file) {
 }
 
 const Icon = ({ name }) => {
-  const icons = { shop: "買いもの", plan: "予定", wheel: "くじ", note: "メモ" };
+  const icons = { shop: "SHOP", plan: "PLAN", wheel: "PICK", note: "NOTE" };
   return (
     <span className="tab-kanji" aria-hidden="true">
       {icons[name]}
@@ -394,7 +415,7 @@ export default function TripToolsApp() {
   if (!loaded)
     return (
       <div className="app-loading">
-        <span>旅</span>
+        <span>TT</span>
         <p>Preparing your journey…</p>
       </div>
     );
@@ -403,13 +424,13 @@ export default function TripToolsApp() {
     <main className="trip-shell">
       <header className="app-header">
         <div className="brand">
-          <span className="brand-mark">タビ</span>
+          <span className="brand-mark">TT</span>
           <div>
             <strong>TRIP TOOLS</strong>
             <small>
               {view === "trip" && (trip.city || trip.country)
                 ? [trip.city, trip.country].filter(Boolean).join(" · ").toUpperCase()
-                : "YOUR JOURNEYS · 旅"}
+                : "YOUR JOURNEYS · TOGETHER"}
             </small>
           </div>
         </div>
@@ -476,12 +497,12 @@ export default function TripToolsApp() {
       <section className="trip-hero">
         <div className="sun-disc" aria-hidden="true" />
         <span className="hero-city-watermark" aria-hidden="true">
-          {trip.city || "旅"}
+          {trip.city || "GO"}
         </span>
         <div className="hero-copy">
           <div className="eyebrow">
             {[trip.city, trip.country].filter(Boolean).join(" · ") || "YOUR NEXT JOURNEY"}
-            <span>次の旅</span>
+            <span>PLAN · SHARE · GO</span>
           </div>
           <input
             className={`trip-name ${trip.tripName.length > 24 ? "very-long-name" : trip.tripName.length > 16 ? "long-name" : ""}`}
@@ -524,7 +545,7 @@ export default function TripToolsApp() {
             </>
           ) : tripStarted && !tripEnded ? (
             <>
-              <span className="count-number">{activeIndex + 1 || "タビ"}</span>
+              <span className="count-number">{activeIndex + 1 || "GO"}</span>
               <span className="count-label">ADVENTURE IN PROGRESS</span>
               <small>
                 Today · {prettyDate(todayLocal)} · {localTimezone}
@@ -605,7 +626,7 @@ export default function TripToolsApp() {
         {tab === "notes" && <Notes trip={trip} setTrip={setTrip} />}
       </section>
       <footer>
-        <span>旅は道連れ</span> · A journey is better with company
+        <span>BETTER TOGETHER</span> · A journey is better with company
       </footer>
         </>
       )}
@@ -618,8 +639,8 @@ export default function TripToolsApp() {
             <button className="modal-close" onClick={() => setShareOpen(false)}>
               ×
             </button>
-            <span className="share-symbol">なかま</span>
-            <small>TRAVEL TOGETHER · いっしょに旅する</small>
+            <span className="share-symbol">DUO</span>
+            <small>PLAN TOGETHER · TRAVEL TOGETHER</small>
             <h2>Invite a companion</h2>
             <p>
               People who join share this trip’s schedule, lists, wheel, and
@@ -769,7 +790,7 @@ function TripList({ trips, canCreate, onOpen, onCreate, onDelete }) {
     <section className="trip-library">
       <div className="trip-library-heading">
         <div>
-          <span>YOUR JOURNEYS · 旅の記録</span>
+          <span>YOUR JOURNEYS · SHARED MEMORIES</span>
           <h1>Trip list</h1>
           <p>Open an upcoming journey or revisit a completed one.</p>
         </div>
@@ -862,7 +883,7 @@ function TripList({ trips, canCreate, onOpen, onCreate, onDelete }) {
       {!trips.length && (
         <div className="trip-card-grid">
           <div className="trip-library-empty">
-            <span>旅</span>
+            <span>TT</span>
             <h2>No trips yet</h2>
             <p>{canCreate ? "Create your first journey to begin planning." : "A group owner can create the first journey."}</p>
           </div>
@@ -950,7 +971,7 @@ function PasswordModal({ user, onClose, onLogout, onUserUpdate }) {
               <span>{avatarSaving ? "…" : "✎"}</span>
             </label>
             <div>
-              <small>TRAVELER ACCOUNT · アカウント</small>
+              <small>TRAVELER ACCOUNT · PRIVATE PROFILE</small>
               <strong>{user?.name}</strong>
             </div>
           </div>
@@ -963,7 +984,7 @@ function PasswordModal({ user, onClose, onLogout, onUserUpdate }) {
           </button>
         </header>
         <div className="account-body">
-          <span className="profile-eyebrow">SECURITY · セキュリティ</span>
+          <span className="profile-eyebrow">ACCOUNT SECURITY</span>
           <h2 id="account-title">Change your password</h2>
           <p>Enter your current password before choosing a new one.</p>
           <form className="password-form" onSubmit={submit}>
@@ -1041,6 +1062,9 @@ function SectionTitle({ eyebrow, title, text, action }) {
 
 function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
   const packed = trip.shopping.filter((item) => item.checked).length;
+  const currency = SHOPPING_CURRENCIES.some(([code]) => code === trip.shoppingCurrency)
+    ? trip.shoppingCurrency
+    : "CAD";
   const budget = Number(trip.shoppingBudget) || 0;
   const spent = trip.shopping.reduce(
     (total, item) => total + (item.checked ? Number(item.price) || 0 : 0),
@@ -1049,9 +1073,14 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
   const remaining = budget - spent;
   const money = (value) => new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: "CAD",
+    currency,
     maximumFractionDigits: 2,
   }).format(value);
+  const currencySymbol = new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  }).formatToParts(0).find((part) => part.type === "currency")?.value || currency;
   const update = (id, values) =>
     setTrip((current) => ({
       ...current,
@@ -1067,14 +1096,29 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
   return (
     <>
       <SectionTitle
-        eyebrow="PACK WITH PURPOSE · 買い物"
+        eyebrow="PLAN THE EXTRAS · SHOPPING"
         title="Shopping list"
-        text="Everything you need, nothing you’ll forget."
+        text="Plan purchases together and keep the trip budget visible."
       />
       <div className="shopping-budget">
+        <label className="currency-select">
+          <span>CURRENCY</span>
+          <select
+            value={currency}
+            onChange={(event) => setTrip((current) => ({
+              ...current,
+              shoppingCurrency: event.target.value,
+            }))}
+            aria-label="Shopping list currency"
+          >
+            {SHOPPING_CURRENCIES.map(([code, name]) => (
+              <option value={code} key={code}>{code} — {name}</option>
+            ))}
+          </select>
+        </label>
         <label>
           <span>TOTAL BUDGET</span>
-          <span className="money-input"><b>$</b><input
+          <span className="money-input"><b title={currency}>{currencySymbol}</b><input
             type="number"
             min="0"
             step="0.01"
@@ -1107,11 +1151,11 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
       </div>
       <form className="shopping-composer" onSubmit={add}>
         <div className="composer-seal">
-          <span>買いもの</span>
+          <span>LIST</span>
           <small>SHOPPING</small>
         </div>
         <label>
-          <small>買いものを追加 · ADD AN ITEM</small>
+          <small>ADD A PURCHASE OR PACKING ITEM</small>
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -1119,7 +1163,7 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
           />
         </label>
         <button>
-          <span>追加する</span>
+          <span>Add item</span>
           <small>ADD TO LIST</small>
         </button>
       </form>
@@ -1158,7 +1202,7 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
                 </button>
               )}
               <label className="item-price">
-                <span>$</span>
+                <span title={currency}>{currencySymbol}</span>
                 <input
                   type="number"
                   min="0"
@@ -1211,7 +1255,7 @@ function Schedule({
     return (
       <>
         <SectionTitle
-          eyebrow="BUILD YOUR DAYS · 旅程"
+          eyebrow="BUILD YOUR DAYS · ITINERARY"
           title="Schedule"
           text="Set the trip dates above and each day will appear here."
         />
@@ -1232,7 +1276,7 @@ function Schedule({
     return (
       <>
         <SectionTitle
-          eyebrow="DAY COMPLETE · お疲れ様"
+          eyebrow="DAY COMPLETE · SHARED PROGRESS"
           title="Beautiful work today"
           text={`${activeDay.items.filter((i) => i.checked).length} visited · ${activeDay.items.filter((i) => !i.checked).length} missed`}
           action={
@@ -1262,7 +1306,7 @@ function Schedule({
   return (
     <>
       <SectionTitle
-        eyebrow={ended ? "JOURNEY COMPLETE · 思い出" : "BUILD YOUR DAYS · 旅程"}
+        eyebrow={ended ? "JOURNEY COMPLETE · MEMORIES" : "BUILD YOUR DAYS · ITINERARY"}
         title={
           ended ? "Your trip at a glance" : `${dates.length}-day itinerary`
         }
@@ -1394,7 +1438,7 @@ function ActiveDay({ day, index, destination, updateDay, onPlan }) {
   return (
     <>
       <SectionTitle
-        eyebrow={`TODAY IN ${destination.toUpperCase()} · 今日`}
+        eyebrow={`TODAY IN ${destination.toUpperCase()} · LIVE PLAN`}
         title={`Day ${index + 1} · ${prettyDate(day.date, { weekday: true })}`}
         text={`${done} of ${day.items.length} locations visited. Check them off as you go.`}
         action={
@@ -1504,7 +1548,7 @@ function Wheel({
   return (
     <>
       <SectionTitle
-        eyebrow="LEAVE IT TO LUCK · 運試し"
+        eyebrow="LEAVE IT TO LUCK · FAIR PICK"
         title="Who’s paying?"
         text="Add everyone, spin the wheel, and let fate choose the generous one."
       />
@@ -1518,7 +1562,7 @@ function Wheel({
               transform: `rotate(${rotation}deg)`,
             }}
           >
-            <div className="wheel-center">運</div>
+            <div className="wheel-center">GO</div>
           </div>
         </div>
         <div className="player-panel">
@@ -1584,13 +1628,13 @@ function Notes({ trip, setTrip }) {
   return (
     <>
       <SectionTitle
-        eyebrow="KEEP THE DETAILS · 旅の記録"
+        eyebrow="KEEP THE DETAILS · TRIP RECORD"
         title="Trip notes"
         text="Addresses, phrases, booking numbers, and every thought in between."
       />
       <div className="note-paper">
         <div className="paper-title">
-          MEMOS <span>覚え書き</span>
+          MEMOS <span>SHARED NOTES</span>
         </div>
         <textarea
           value={trip.notes}
@@ -1903,7 +1947,7 @@ function AdminManager({ currentUser, onClose }) {
       >
         <header>
           <div>
-            <small>{overview.isAdmin ? "ADMINISTRATION" : "TRIP OWNER"} · ユーザー管理</small>
+            <small>{overview.isAdmin ? "ADMINISTRATION" : "TRIP OWNER"} · ACCESS MANAGEMENT</small>
             <h2 id="manager-title">Manage users & groups</h2>
             <p>Each group is one trip. A traveler can belong to several groups.</p>
           </div>
@@ -2086,7 +2130,7 @@ function AdminManager({ currentUser, onClose }) {
 function Empty({ text }) {
   return (
     <div className="empty-state">
-      <span>ふじ</span>
+      <span>TOGETHER</span>
       <p>{text}</p>
     </div>
   );

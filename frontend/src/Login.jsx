@@ -33,18 +33,18 @@ export default function LoginPage() {
     <main className="login-page">
       <section className="login-scene">
         <div className="login-sun" />
-        <div className="login-city">旅</div>
+        <div className="login-city">TWO</div>
         <div className="login-scene-copy">
-          <span>TRIP PLANNER · 旅の計画</span>
-          <h2>Every great journey<br />starts with a plan.</h2>
-          <p>Pack together. Plan every day. Make memories.</p>
+          <span>COUPLES TRAVEL PLANNER</span>
+          <h2>Plan every journey.<br />Experience it together.</h2>
+          <p>Build itineraries, manage shared lists, and keep every trip organized.</p>
         </div>
       </section>
 
       <section className="login-panel">
-        <div className="login-brand"><span>タビ</span><small>TRIP TOOLS</small></div>
+        <div className="login-brand"><span>TT</span><small>TRIP TOOLS</small></div>
         <h1>{mode === "login" ? "Welcome back" : "Join the journey"}</h1>
-        <p className="login-intro">{mode === "login" ? "Your next adventure is waiting." : "Use the invitation from your travel companion."}</p>
+        <p className="login-intro">{mode === "login" ? "Your shared trips, plans, and memories are waiting." : "Use the invitation from your travel partner."}</p>
 
         <div className="auth-tabs">
           <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); }}>Log in</button>

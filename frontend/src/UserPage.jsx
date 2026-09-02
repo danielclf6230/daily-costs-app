@@ -39,7 +39,7 @@ export default function UserPage() {
     <main className="profile-page">
       <header className="profile-topbar">
         <button className="profile-back" onClick={() => nav("/app")}>← Back to trip</button>
-        <div className="brand"><span className="brand-mark">タビ</span><div><strong>TRIP TOOLS</strong><small>ACCOUNT · アカウント</small></div></div>
+        <div className="brand"><span className="brand-mark">TT</span><div><strong>TRIP TOOLS</strong><small>TRAVELER ACCOUNT</small></div></div>
         <button className="profile-logout" onClick={() => { logout(); nav("/", { replace: true }); }}>Log out</button>
       </header>
 
@@ -51,11 +51,11 @@ export default function UserPage() {
           <span>TRAVELER PROFILE</span>
           <h1>{user?.name}</h1>
           <p>{user?.role === "admin" ? "Administrator" : "Trip member"}</p>
-          <div className="profile-stamp">旅<br /><small>TRAVEL</small></div>
+          <div className="profile-stamp">TT<br /><small>TRAVEL</small></div>
         </aside>
 
         <div className="password-card">
-          <span className="profile-eyebrow">SECURITY · セキュリティ</span>
+          <span className="profile-eyebrow">ACCOUNT SECURITY</span>
           <h2>Change your password</h2>
           <p>Confirm your identity with your current password, then choose a new secure password.</p>
           <form onSubmit={submit} className="password-form">
