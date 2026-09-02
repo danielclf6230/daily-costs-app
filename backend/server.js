@@ -149,7 +149,7 @@ app.post("/api/auth/register", authLimiter, async (req, res) => {
     let invitedTrip = null;
     if (inviteCode) {
       const [invites] = await connection.execute(
-        "SELECT id, trip_id FROM trip_tools_invites WHERE code = ? AND used_at IS NULL AND expires_at > NOW() FOR UPDATE",
+        "SELECT id, trip_id, created_by FROM trip_tools_invites WHERE code = ? AND used_at IS NULL AND expires_at > NOW() FOR UPDATE",
         [inviteCode.toUpperCase()],
       );
       if (!invites.length) {
@@ -162,8 +162,8 @@ app.post("/api/auth/register", authLimiter, async (req, res) => {
     }
     const passwordHash = await bcrypt.hash(password, 12);
     const [created] = await connection.execute(
-      "INSERT INTO trip_users (name, password) VALUES (?, ?)",
-      [name, passwordHash],
+      "INSERT INTO trip_users (name, password, invited_by_user_id) VALUES (?, ?, ?)",
+      [name, passwordHash, invitedTrip.created_by],
     );
     let tripId;
     tripId = invitedTrip.trip_id;
@@ -501,9 +501,9 @@ app.get("/api/manage/overview", async (req, res) => {
           `SELECT u.id, u.name, u.role, u.created_at,
             COUNT(m.trip_id) AS group_count,
             COALESCE(SUM(m.role = 'owner'), 0) AS owned_group_count,
-            (SELECT i.created_by FROM trip_tools_invites i
+            COALESCE(u.invited_by_user_id, (SELECT i.created_by FROM trip_tools_invites i
              WHERE i.used_by = u.id AND i.used_at IS NOT NULL
-             ORDER BY i.used_at DESC, i.id DESC LIMIT 1) AS invited_by_user_id
+             ORDER BY i.used_at DESC, i.id DESC LIMIT 1)) AS invited_by_user_id
            FROM trip_users u LEFT JOIN trip_tools_members m ON m.user_id = u.id
            GROUP BY u.id ORDER BY u.created_at, u.id`,
         );
@@ -512,9 +512,9 @@ app.get("/api/manage/overview", async (req, res) => {
           `SELECT u.id, u.name, u.role, u.created_at,
             COUNT(DISTINCT all_memberships.trip_id) AS group_count,
             COALESCE(SUM(all_memberships.role = 'owner'), 0) AS owned_group_count,
-            (SELECT i.created_by FROM trip_tools_invites i
+            COALESCE(u.invited_by_user_id, (SELECT i.created_by FROM trip_tools_invites i
              WHERE i.used_by = u.id AND i.used_at IS NOT NULL
-             ORDER BY i.used_at DESC, i.id DESC LIMIT 1) AS invited_by_user_id
+             ORDER BY i.used_at DESC, i.id DESC LIMIT 1)) AS invited_by_user_id
            FROM trip_users u
            LEFT JOIN trip_tools_members all_memberships ON all_memberships.user_id = u.id
            WHERE EXISTS (

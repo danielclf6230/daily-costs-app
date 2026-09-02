@@ -17,6 +17,13 @@ try {
       SELECT id, name, password, avatarUrl, bannerUrl, created_at FROM users`);
     const [roleColumns] = await connection.query("SHOW COLUMNS FROM trip_users LIKE 'role'");
     if (!roleColumns.length) await connection.query("ALTER TABLE trip_users ADD COLUMN role ENUM('admin', 'user') NOT NULL DEFAULT 'user' AFTER password");
+    const [invitedByColumns] = await connection.query("SHOW COLUMNS FROM trip_users LIKE 'invited_by_user_id'");
+    if (!invitedByColumns.length) {
+      await connection.query(`ALTER TABLE trip_users
+        ADD COLUMN invited_by_user_id INT NULL AFTER role,
+        ADD INDEX idx_trip_user_inviter (invited_by_user_id),
+        ADD CONSTRAINT fk_trip_user_inviter FOREIGN KEY (invited_by_user_id) REFERENCES trip_users(id) ON DELETE SET NULL`);
+    }
     const [avatarMigrations] = await connection.query("SHOW COLUMNS FROM trip_users LIKE 'avatarUrl'");
     if (avatarMigrations.length && !/text/i.test(avatarMigrations[0].Type)) {
       await connection.query("ALTER TABLE trip_users MODIFY COLUMN avatarUrl MEDIUMTEXT NULL");
