@@ -9,7 +9,6 @@ import {
   deleteAdminUser,
   deleteTrip,
   loadAdminOverview,
-  loadMembers,
   loadTrip,
   loadTrips,
   removeUserFromGroup,
@@ -157,7 +156,6 @@ export default function TripToolsApp() {
   const [spinning, setSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
-  const [members, setMembers] = useState([]);
   const [invite, setInvite] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -380,13 +378,8 @@ export default function TripToolsApp() {
     }, 3800);
   }
 
-  async function openSharing() {
+  function openSharing() {
     setShareOpen(true);
-    try {
-      setMembers(await loadMembers(tripId));
-    } catch {
-      setMembers([]);
-    }
   }
 
   async function makeInvite() {
@@ -632,17 +625,6 @@ export default function TripToolsApp() {
               People who join share this trip’s schedule, lists, wheel, and
               notes.
             </p>
-            <div className="member-list">
-              {members.map((member) => (
-                <div key={member.id}>
-                  <i>{member.name[0].toUpperCase()}</i>
-                  <span>
-                    {member.name}
-                    <small>{member.role}</small>
-                  </span>
-                </div>
-              ))}
-            </div>
             {invite ? (
               <div className="invite-code">
                 <small>INVITATION CODE · EXPIRES IN 7 DAYS</small>
