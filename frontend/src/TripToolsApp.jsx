@@ -34,6 +34,53 @@ const emptyTrip = {
 };
 
 const makeId = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+const DEFAULT_WHEEL_PARTS = 4;
+const MAX_WHEEL_PARTS = 12;
+
+function wheelPartCount(person) {
+  const parts = Number(person?.parts);
+  return Number.isInteger(parts)
+    ? Math.min(MAX_WHEEL_PARTS, Math.max(1, parts))
+    : DEFAULT_WHEEL_PARTS;
+}
+
+function wheelSegments(travelers = []) {
+  const remaining = travelers.map(wheelPartCount);
+  const segments = [];
+  while (remaining.some(Boolean)) {
+    travelers.forEach((person, travelerIndex) => {
+      if (remaining[travelerIndex] > 0) {
+        segments.push({ person, travelerIndex });
+        remaining[travelerIndex] -= 1;
+      }
+    });
+  }
+  return segments;
+}
+
+function upgradeTravelers(travelers = []) {
+  const groups = new Map();
+  travelers.forEach((person) => {
+    const key = person.name.trim().toLocaleLowerCase();
+    const group = groups.get(key) || [];
+    group.push(person);
+    groups.set(key, group);
+  });
+  return [...groups.values()].flatMap((group) => {
+    const isLegacyDuplicate = group.length > 1 && group.every((person) => person.parts == null);
+    if (!isLegacyDuplicate) {
+      return group.map((person) => ({ ...person, parts: wheelPartCount(person) }));
+    }
+    return [{ ...group[0], parts: Math.min(MAX_WHEEL_PARTS, group.length) }];
+  });
+}
+
+function prepareTrip(value) {
+  return value
+    ? { ...emptyTrip, ...value, travelers: upgradeTravelers(value.travelers) }
+    : emptyTrip;
+}
+
 const SHOPPING_CURRENCIES = [
   ["CAD", "Canadian Dollar"],
   ["USD", "US Dollar"],
@@ -205,7 +252,7 @@ export default function TripToolsApp() {
         if (initialTrip) {
           const selected = await loadTrip(initialTrip.id);
           setTripId(selected.id);
-          setTrip(selected.trip ? { ...emptyTrip, ...selected.trip } : emptyTrip);
+          setTrip(prepareTrip(selected.trip));
           setCanInvite(selected.canInvite);
           setView("trip");
         } else {
@@ -298,7 +345,7 @@ export default function TripToolsApp() {
       tripList.find((item) => item.id === id) || selected.trip,
     );
     setTripId(selected.id);
-    setTrip(selected.trip ? { ...emptyTrip, ...selected.trip } : emptyTrip);
+    setTrip(prepareTrip(selected.trip));
     setCanInvite(selected.canInvite);
     setInvite("");
     setView("trip");
@@ -385,8 +432,9 @@ export default function TripToolsApp() {
 
   function spinWheel() {
     if (trip.travelers.length < 2 || spinning) return;
-    const selected = Math.floor(Math.random() * trip.travelers.length);
-    const segment = 360 / trip.travelers.length;
+    const segments = wheelSegments(trip.travelers);
+    const selected = Math.floor(Math.random() * segments.length);
+    const segment = 360 / segments.length;
     const desired = (360 - (selected * segment + segment / 2)) % 360;
     const delta = (desired - (rotation % 360) + 360) % 360;
     const target = rotation + 1440 + delta;
@@ -394,7 +442,7 @@ export default function TripToolsApp() {
     setSpinning(true);
     setRotation(target);
     setTimeout(() => {
-      setWinner(trip.travelers[selected].name);
+      setWinner(segments[selected].person.name);
       setSpinning(false);
     }, 3800);
   }
@@ -967,8 +1015,22 @@ function PasswordModal({ user, onClose, onLogout, onUserUpdate }) {
               ) : (
                 (user?.name || "T")[0].toUpperCase()
               )}
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={changeAvatar} disabled={avatarSaving} />
-              <span>{avatarSaving ? "…" : "✎"}</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={changeAvatar}
+                disabled={avatarSaving}
+                aria-label="Change profile photo"
+              />
+              <span className="avatar-edit-badge" aria-hidden="true">
+                {avatarSaving ? (
+                  <i className="avatar-spinner" />
+                ) : (
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M9 4.5 10.4 3h3.2L15 4.5h2.75A2.25 2.25 0 0 1 20 6.75v9A2.25 2.25 0 0 1 17.75 18H6.25A2.25 2.25 0 0 1 4 15.75v-9A2.25 2.25 0 0 1 6.25 4.5H9Zm3 3A4.25 4.25 0 1 0 12 16a4.25 4.25 0 0 0 0-8.5Zm0 1.75A2.5 2.5 0 1 1 12 14.25a2.5 2.5 0 0 1 0-5Z" />
+                  </svg>
+                )}
+              </span>
             </label>
             <div>
               <small>TRAVELER ACCOUNT · PRIVATE PROFILE</small>
@@ -1530,8 +1592,9 @@ function Wheel({
     "#5d7545",
     "#de8e42",
   ];
-  const gradient = trip.travelers.length
-    ? `conic-gradient(${trip.travelers.map((_, i) => `${colors[i % colors.length]} ${(i * 100) / trip.travelers.length}% ${((i + 1) * 100) / trip.travelers.length}%`).join(",")})`
+  const segments = wheelSegments(trip.travelers);
+  const gradient = segments.length
+    ? `conic-gradient(${segments.map((segment, i) => `${colors[segment.travelerIndex % colors.length]} ${(i * 100) / segments.length}% ${((i + 1) * 100) / segments.length}%`).join(",")})`
     : "conic-gradient(#eee 0 100%)";
   const add = (e) => {
     e.preventDefault();
@@ -1540,7 +1603,7 @@ function Wheel({
       ...current,
       travelers: [
         ...current.travelers,
-        { id: makeId(), name: newTraveler.trim() },
+        { id: makeId(), name: newTraveler.trim(), parts: DEFAULT_WHEEL_PARTS },
       ],
     }));
     setNewTraveler("");
@@ -1567,8 +1630,11 @@ function Wheel({
         </div>
         <div className="player-panel">
           <h3>
-            Travel party <span>{trip.travelers.length}</span>
+            Travel party <span>{segments.length}</span>
           </h3>
+          <small className="wheel-parts-summary">
+            {trip.travelers.length} {trip.travelers.length === 1 ? "traveler" : "travelers"} · {segments.length} wheel {segments.length === 1 ? "part" : "parts"}
+          </small>
           <form className="person-add" onSubmit={add}>
             <input
               value={newTraveler}
@@ -1581,7 +1647,29 @@ function Wheel({
             {trip.travelers.map((person, i) => (
               <div key={person.id}>
                 <i style={{ background: colors[i % colors.length] }} />
-                {person.name}
+                <span className="traveler-name">{person.name}</span>
+                <label className="parts-control">
+                  <span>PARTS</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={MAX_WHEEL_PARTS}
+                    value={wheelPartCount(person)}
+                    onChange={(event) => {
+                      const parts = Math.min(
+                        MAX_WHEEL_PARTS,
+                        Math.max(1, Number(event.target.value) || 1),
+                      );
+                      setTrip((current) => ({
+                        ...current,
+                        travelers: current.travelers.map((traveler) =>
+                          traveler.id === person.id ? { ...traveler, parts } : traveler,
+                        ),
+                      }));
+                    }}
+                    aria-label={`Wheel parts for ${person.name}`}
+                  />
+                </label>
                 <button
                   onClick={() =>
                     setTrip((current) => ({
@@ -1605,7 +1693,9 @@ function Wheel({
             {spinning ? "SPINNING…" : "SPIN THE WHEEL"}
           </button>
           <small className="wheel-hint">
-            Add at least two travelers to spin
+            {trip.travelers.length < 2
+              ? "Add at least two travelers to spin"
+              : "More parts give a traveler a higher chance of being selected"}
           </small>
         </div>
       </div>

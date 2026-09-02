@@ -95,7 +95,13 @@ const TripSchema = z.object({
       }),
     )
     .max(60),
-  travelers: z.array(z.object({ id, name: z.string().max(80) })).max(30),
+  travelers: z
+    .array(z.object({
+      id,
+      name: z.string().max(80),
+      parts: z.number().int().min(1).max(12).optional().default(4),
+    }))
+    .max(30),
   notes: z.string().max(20000),
 });
 
