@@ -30,6 +30,7 @@ const emptyTrip = {
   shopping: [],
   days: [],
   travelers: [],
+  wheelResults: {},
   notes: "",
 };
 
@@ -442,7 +443,15 @@ export default function TripToolsApp() {
     setSpinning(true);
     setRotation(target);
     setTimeout(() => {
-      setWinner(segments[selected].person.name);
+      const selectedPerson = segments[selected].person;
+      setWinner(selectedPerson.name);
+      setTrip((current) => ({
+        ...current,
+        wheelResults: {
+          ...(current.wheelResults || {}),
+          [selectedPerson.id]: (current.wheelResults?.[selectedPerson.id] || 0) + 1,
+        },
+      }));
       setSpinning(false);
     }, 3800);
   }
@@ -669,6 +678,7 @@ export default function TripToolsApp() {
             spinning={spinning}
             rotation={rotation}
             spin={spinWheel}
+            dismissWinner={() => setWinner("")}
           />
         )}
         {tab === "notes" && <Notes trip={trip} setTrip={setTrip} />}
@@ -1009,12 +1019,14 @@ function PasswordModal({ user, onClose, onLogout, onUserUpdate }) {
       >
         <header>
           <div className="account-person">
-            <label className={`account-avatar avatar-upload ${avatarSaving ? "saving" : ""}`} title="Upload profile photo">
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" />
-              ) : (
-                (user?.name || "T")[0].toUpperCase()
-              )}
+            <label className={`avatar-upload ${avatarSaving ? "saving" : ""}`} title="Upload profile photo">
+              <span className="avatar-image-frame">
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" />
+                ) : (
+                  (user?.name || "T")[0].toUpperCase()
+                )}
+              </span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -1583,6 +1595,7 @@ function Wheel({
   spinning,
   rotation,
   spin,
+  dismissWinner,
 }) {
   const colors = [
     "#e54b36",
@@ -1593,6 +1606,11 @@ function Wheel({
     "#de8e42",
   ];
   const segments = wheelSegments(trip.travelers);
+  const wheelResults = trip.wheelResults || {};
+  const totalResults = Object.values(wheelResults).reduce(
+    (total, count) => total + (Number(count) || 0),
+    0,
+  );
   const gradient = segments.length
     ? `conic-gradient(${segments.map((segment, i) => `${colors[segment.travelerIndex % colors.length]} ${(i * 100) / segments.length}% ${((i + 1) * 100) / segments.length}%`).join(",")})`
     : "conic-gradient(#eee 0 100%)";
@@ -1677,6 +1695,11 @@ function Wheel({
                       travelers: current.travelers.filter(
                         (p) => p.id !== person.id,
                       ),
+                      wheelResults: Object.fromEntries(
+                        Object.entries(current.wheelResults || {}).filter(
+                          ([travelerId]) => travelerId !== person.id,
+                        ),
+                      ),
                     }))
                   }
                 >
@@ -1684,6 +1707,30 @@ function Wheel({
                 </button>
               </div>
             ))}
+          </div>
+          <div className="wheel-results">
+            <div className="wheel-results-heading">
+              <div>
+                <span>RESULT TALLY</span>
+                <strong>{totalResults} {totalResults === 1 ? "spin" : "spins"}</strong>
+              </div>
+              <button
+                type="button"
+                disabled={!totalResults}
+                onClick={() => setTrip((current) => ({ ...current, wheelResults: {} }))}
+              >
+                Reset
+              </button>
+            </div>
+            <div className="wheel-result-list">
+              {trip.travelers.map((person, i) => (
+                <div key={person.id}>
+                  <i style={{ background: colors[i % colors.length] }} />
+                  <span>{person.name}</span>
+                  <strong>{wheelResults[person.id] || 0}</strong>
+                </div>
+              ))}
+            </div>
           </div>
           <button
             className="spin-button"
@@ -1706,7 +1753,7 @@ function Wheel({
             <small>CONGRATULATIONS!</small>
             <h2>{winner}</h2>
             <p>It’s your lucky day — you’re paying!</p>
-            <button onClick={() => location.reload()}>Done</button>
+            <button onClick={dismissWinner}>Keep spinning</button>
           </div>
         </div>
       )}

@@ -102,6 +102,10 @@ const TripSchema = z.object({
       parts: z.number().int().min(1).max(12).optional().default(4),
     }))
     .max(30),
+  wheelResults: z
+    .record(z.number().int().min(0).max(1000000))
+    .optional()
+    .default({}),
   notes: z.string().max(20000),
 });
 
@@ -375,6 +379,7 @@ app.post("/api/admin/users", async (req, res) => {
       shopping: [],
       days: [],
       travelers: [],
+      wheelResults: {},
       notes: "",
     });
     const [trip] = await connection.execute(
@@ -816,6 +821,7 @@ app.post("/api/trips", async (req, res) => {
       shopping: [],
       days: tripDays(values.startDate, values.endDate),
       travelers: [],
+      wheelResults: {},
       notes: "",
     };
     const connection = await pool.getConnection();
