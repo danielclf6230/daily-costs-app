@@ -33,7 +33,10 @@
 .trip-card.completed:after{content:'済'}
 .trip-card-topline{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;color:#9b4a3d;font-size:8px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}
 .trip-card-topline>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trip-card-status-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
 .trip-card-topline b{flex:0 0 auto;padding:5px 8px;background:#eee5d8;color:#6d7773;font-size:7px;letter-spacing:.1em}
+.trip-delete-btn{display:grid;place-items:center;width:25px;height:25px;padding:0;border:1px solid #d6aaa2;background:transparent;color:var(--red)}
+.trip-delete-btn svg{width:13px;height:13px;fill:currentColor}.trip-delete-btn:hover{background:var(--red);color:#fff}.trip-delete-btn:disabled{opacity:.45}
 .trip-card.active .trip-card-topline b{background:#e4eddf;color:#547044}
 .trip-card.completed .trip-card-topline b{background:#dde3df;color:#53645d}
 .trip-card h2{position:relative;z-index:1;margin:25px 0 6px;color:var(--ink);font:700 25px/1.2 'Noto Serif JP'}
@@ -47,4 +50,4 @@
 .trip-library-empty p{margin:0;font-size:12px}
 
 @media(max-width:980px){.new-trip-form{grid-template-columns:repeat(2,minmax(0,1fr))}.new-trip-form>button{grid-column:1/-1}.trip-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.hero-city-watermark{display:none}.trip-library{min-height:calc(100vh - 66px);padding:38px 18px 55px}.trip-library-heading{align-items:flex-start;flex-direction:column;margin-bottom:25px}.trip-library-heading .primary-btn{width:100%}.new-trip-form{grid-template-columns:1fr;padding:18px 15px}.new-trip-intro{align-items:flex-start;flex-direction:column;gap:5px}.new-trip-form>button{grid-column:auto}.trip-card-grid{grid-template-columns:1fr}.trip-card{min-height:210px}.trip-list-btn{padding:7px 10px}}
+@media(max-width:760px){.hero-city-watermark{display:none}.trip-library{min-height:calc(100vh - 66px);padding:38px 18px 55px}.trip-library-heading{align-items:flex-start;flex-direction:column;margin-bottom:25px}.trip-library-heading .primary-btn{width:100%}.new-trip-form{grid-template-columns:1fr;padding:18px 15px}.new-trip-intro{align-items:flex-start;flex-direction:column;gap:5px}.new-trip-form>button{grid-column:auto}.trip-card-grid{grid-template-columns:1fr}.trip-card{min-height:210px}.trip-list-btn{padding:7px 10px}.trip-card-status-actions{gap:5px}.trip-delete-btn{width:27px;height:27px}}

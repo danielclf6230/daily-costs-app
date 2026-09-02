@@ -4,7 +4,7 @@ import { makePool } from "./db.js";
 
 const pool = makePool();
 const initialTrip = JSON.stringify({
-  tripName: "Our Tokyo Adventure", country: "Japan", city: "Tokyo", startDate: "", endDate: "", shopping: [],
+  tripName: "Our Tokyo Adventure", country: "Japan", city: "Tokyo", startDate: "", endDate: "", shoppingBudget: 0, shopping: [],
   days: [], travelers: [], notes: "",
 });
 
@@ -119,7 +119,7 @@ try {
         WHERE u.role = 'user' AND owner.role = 'admin' AND t.owner_user_id <> u.id
       `);
       for (const user of standaloneUsers) {
-        const data = JSON.stringify({ tripName: `${user.name}'s Trip`, country: "", city: "", startDate: "", endDate: "", shopping: [], days: [], travelers: [], notes: "" });
+        const data = JSON.stringify({ tripName: `${user.name}'s Trip`, country: "", city: "", startDate: "", endDate: "", shoppingBudget: 0, shopping: [], days: [], travelers: [], notes: "" });
         await connection.execute("DELETE FROM trip_tools_members WHERE user_id = ?", [user.id]);
         const [newTrip] = await connection.execute("INSERT INTO trip_tools_trips (owner_user_id, trip_data) VALUES (?, ?)", [user.id, data]);
         await connection.execute("INSERT INTO trip_tools_members (trip_id, user_id, role) VALUES (?, ?, 'owner')", [newTrip.insertId, user.id]);

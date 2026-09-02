@@ -7,6 +7,7 @@ import {
   createInvite,
   createTrip,
   deleteAdminUser,
+  deleteTrip,
   loadAdminOverview,
   loadMembers,
   loadTrip,
@@ -25,6 +26,7 @@ const emptyTrip = {
   city: "",
   startDate: "",
   endDate: "",
+  shoppingBudget: 0,
   shopping: [],
   days: [],
   travelers: [],
@@ -356,7 +358,7 @@ export default function TripToolsApp() {
       ...current,
       shopping: [
         ...current.shopping,
-        { id: makeId(), text: shoppingText.trim(), checked: false },
+        { id: makeId(), text: shoppingText.trim(), checked: false, price: 0 },
       ],
     }));
     setShoppingText("");
@@ -471,6 +473,10 @@ export default function TripToolsApp() {
           canCreate={canCreateTrips}
           onOpen={openTripProfile}
           onCreate={addTripProfile}
+          onDelete={async (id) => {
+            await deleteTrip(id);
+            await refreshTrips();
+          }}
         />
       ) : (
         <>
@@ -485,7 +491,7 @@ export default function TripToolsApp() {
             <span>次の旅</span>
           </div>
           <input
-            className="trip-name"
+            className={`trip-name ${trip.tripName.length > 24 ? "very-long-name" : trip.tripName.length > 16 ? "long-name" : ""}`}
             value={trip.tripName}
             onChange={(e) => setTrip({ ...trip, tripName: e.target.value })}
             aria-label="Trip name"
@@ -678,7 +684,7 @@ export default function TripToolsApp() {
   );
 }
 
-function TripList({ trips, canCreate, onOpen, onCreate }) {
+function TripList({ trips, canCreate, onOpen, onCreate, onDelete }) {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -729,14 +735,39 @@ function TripList({ trips, canCreate, onOpen, onCreate }) {
     }
   }
 
-  function tripCards(items) {
+  async function removeTrip(item) {
+    if (!window.confirm(`Delete ${item.tripName}? This permanently removes the trip for every traveler.`)) return;
+    setBusy(`delete-trip-${item.id}`);
+    setError("");
+    try {
+      await onDelete(item.id);
+    } catch (requestError) {
+      setError(requestError.message || "Could not delete the trip.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function tripCards(items, allowDelete = false) {
     return items.map((item) => {
       const status = statusFor(item);
       return (
         <article className={`trip-card ${status.className}`} key={item.id}>
           <div className="trip-card-topline">
             <span>{[item.city, item.country].filter(Boolean).join(" · ") || "Destination pending"}</span>
-            <b>{status.label}</b>
+            <div className="trip-card-status-actions">
+              <b>{status.label}</b>
+              {allowDelete && <button
+                type="button"
+                className="trip-delete-btn"
+                disabled={busy === `delete-trip-${item.id}`}
+                onClick={() => removeTrip(item)}
+                aria-label={`Delete ${item.tripName}`}
+                title="Delete trip"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg>
+              </button>}
+            </div>
           </div>
           <h2>{item.tripName}</h2>
           <p>
@@ -832,7 +863,7 @@ function TripList({ trips, canCreate, onOpen, onCreate }) {
             <div><span>OWNER</span><h2>Trips you own</h2></div>
             <strong>{ownedTrips.length}</strong>
           </div>
-          <div className="trip-card-grid">{tripCards(ownedTrips)}</div>
+          <div className="trip-card-grid">{tripCards(ownedTrips, true)}</div>
         </section>
       )}
 
@@ -987,7 +1018,7 @@ function PasswordModal({ user, onClose, onLogout, onUserUpdate }) {
               </label>
             </div>
             <small className="password-rule">
-              Use 10+ characters with uppercase, lowercase, and a number.
+              Use at least 6 characters with a letter and a number.
             </small>
             {status.text && (
               <div className={`profile-alert ${status.type}`}>
@@ -1028,6 +1059,17 @@ function SectionTitle({ eyebrow, title, text, action }) {
 
 function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
   const packed = trip.shopping.filter((item) => item.checked).length;
+  const budget = Number(trip.shoppingBudget) || 0;
+  const spent = trip.shopping.reduce(
+    (total, item) => total + (item.checked ? Number(item.price) || 0 : 0),
+    0,
+  );
+  const remaining = budget - spent;
+  const money = (value) => new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "CAD",
+    maximumFractionDigits: 2,
+  }).format(value);
   const update = (id, values) =>
     setTrip((current) => ({
       ...current,
@@ -1047,6 +1089,28 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
         title="Shopping list"
         text="Everything you need, nothing you’ll forget."
       />
+      <div className="shopping-budget">
+        <label>
+          <span>TOTAL BUDGET</span>
+          <span className="money-input"><b>$</b><input
+            type="number"
+            min="0"
+            step="0.01"
+            value={trip.shoppingBudget || ""}
+            onChange={(event) => setTrip((current) => ({
+              ...current,
+              shoppingBudget: Math.max(0, Number(event.target.value) || 0),
+            }))}
+            placeholder="0.00"
+            aria-label="Total shopping budget"
+          /></span>
+        </label>
+        <div><span>SPENT</span><strong>{money(spent)}</strong></div>
+        <div className={remaining < 0 ? "over-budget" : ""}>
+          <span>{remaining < 0 ? "OVER BUDGET" : "REMAINING"}</span>
+          <strong>{money(Math.abs(remaining))}</strong>
+        </div>
+      </div>
       <div className="progress-row">
         <div>
           <strong>{packed}</strong> of {trip.shopping.length} packed
@@ -1111,6 +1175,18 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
                   {item.text}
                 </button>
               )}
+              <label className="item-price">
+                <span>$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.price || ""}
+                  onChange={(event) => update(item.id, { price: Math.max(0, Number(event.target.value) || 0) })}
+                  placeholder="Price"
+                  aria-label={`Price for ${item.text}`}
+                />
+              </label>
               <button
                 className="icon-btn"
                 onClick={() => setEditing(item.id)}
@@ -1554,11 +1630,16 @@ function AdminManager({ currentUser, onClose }) {
   const [overview, setOverview] = useState({ users: [], groups: [], isAdmin: false });
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [resets, setResets] = useState({});
+  const [resetAccount, setResetAccount] = useState(null);
+  const [resetForm, setResetForm] = useState({ password: "", confirm: "" });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [dragging, setDragging] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+  const [collapsedUsers, setCollapsedUsers] = useState(new Set());
+  const collapseDefaultsSet = useRef(false);
   const refresh = () =>
     loadAdminOverview()
       .then(setOverview)
@@ -1566,6 +1647,18 @@ function AdminManager({ currentUser, onClose }) {
   useEffect(() => {
     refresh();
   }, []);
+
+  useEffect(() => {
+    if (collapseDefaultsSet.current || (!overview.groups.length && !overview.users.length)) return;
+    const ownerIds = [...new Set([
+      ...overview.groups.map((group) => group.owner_user_id),
+      ...overview.users.filter((account) => account.role === "admin" || Number(account.owned_group_count) > 0).map((account) => account.id),
+      ...overview.users.map((account) => account.invited_by_user_id).filter(Boolean),
+    ])];
+    setCollapsedGroups(new Set(ownerIds));
+    setCollapsedUsers(new Set([...ownerIds, "all-owners", "own-invited"]));
+    collapseDefaultsSet.current = true;
+  }, [overview]);
 
   async function create(event) {
     event.preventDefault();
@@ -1584,13 +1677,20 @@ function AdminManager({ currentUser, onClose }) {
     }
   }
 
-  async function reset(account) {
+  async function reset(event) {
+    event.preventDefault();
+    if (!resetAccount) return;
+    if (resetForm.password !== resetForm.confirm) {
+      setMessage("The new passwords do not match.");
+      return;
+    }
     setMessage("");
-    setBusy(`reset-${account.id}`);
+    setBusy(`reset-${resetAccount.id}`);
     try {
-      await resetUserPassword(account.id, resets[account.id] || "");
-      setResets((current) => ({ ...current, [account.id]: "" }));
-      setMessage(`${account.name}'s password was updated.`);
+      await resetUserPassword(resetAccount.id, resetForm.password);
+      setMessage(`${resetAccount.name}'s password was updated.`);
+      setResetAccount(null);
+      setResetForm({ password: "", confirm: "" });
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -1653,6 +1753,20 @@ function AdminManager({ currentUser, onClose }) {
     await addToGroup(account, groupId);
   }
 
+  async function tapIntoGroup(groupId) {
+    if (!selectedUserId || busy) return;
+    const account = overview.users.find((user) => user.id === selectedUserId);
+    const target = overview.groups.find((group) => group.id === groupId);
+    if (!account || !target) return;
+    if (target.members.some((member) => member.id === selectedUserId)) {
+      setMessage(`${account.name} already has access to ${target.name}.`);
+      setSelectedUserId(null);
+      return;
+    }
+    await addToGroup(account, groupId);
+    setSelectedUserId(null);
+  }
+
   async function dropToRemove(event) {
     event.preventDefault();
     let payload = dragging;
@@ -1688,6 +1802,21 @@ function AdminManager({ currentUser, onClose }) {
     }
   }
 
+  async function removeGroup(group) {
+    if (!window.confirm(`Delete ${group.name}? This permanently removes the trip for every traveler.`)) return;
+    setBusy(`delete-group-${group.id}`);
+    setMessage("");
+    try {
+      await deleteTrip(group.id);
+      setMessage(`${group.name} was deleted.`);
+      await refresh();
+    } catch (error) {
+      setMessage(error.message || "Could not delete the trip.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   const groupsByOwner = overview.groups.reduce((sections, group) => {
     const owner = group.members.find((member) => member.role === "owner");
     const ownerId = owner?.id ?? group.owner_user_id;
@@ -1702,6 +1831,82 @@ function AdminManager({ currentUser, onClose }) {
     section.groups.push(group);
     return sections;
   }, []);
+
+  const invitationOwnerIds = new Set(
+    overview.users.map((account) => Number(account.invited_by_user_id)).filter(Boolean),
+  );
+  const hierarchySections = [...groupsByOwner];
+  overview.users
+    .filter((account) => account.role === "admin" || Number(account.owned_group_count) > 0 || invitationOwnerIds.has(Number(account.id)))
+    .forEach((account) => {
+      if (!hierarchySections.some((section) => Number(section.ownerId) === Number(account.id))) {
+        hierarchySections.push({ ownerId: account.id, ownerName: account.name, groups: [] });
+      }
+    });
+  const groupedUserIds = new Set();
+  const userHierarchy = hierarchySections.map((ownerSection) => {
+    const owner = overview.users.find((account) => account.id === ownerSection.ownerId);
+    if (owner) groupedUserIds.add(owner.id);
+    const invited = overview.users.filter((account) =>
+      Number(account.invited_by_user_id) === Number(ownerSection.ownerId)
+    );
+    invited.forEach((account) => groupedUserIds.add(account.id));
+    return { ...ownerSection, owner, invited };
+  });
+  const ungroupedUsers = overview.users.filter((account) => !groupedUserIds.has(account.id));
+  const ownerAccounts = overview.users.filter((account) => Number(account.owned_group_count) > 0);
+  const ownInvitedUsers = overview.users.filter((account) =>
+    Number(account.invited_by_user_id) === Number(currentUser.id),
+  );
+
+  const toggleSet = (setter, id) => setter((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const userRow = (account, invited = false) => (
+    <article
+      className={`managed-user draggable-user ${selectedUserId === account.id ? "selected-user" : ""} ${invited ? "invited-user-row" : ""} ${overview.isAdmin ? "" : "owner-user-row"}`}
+      key={`${invited ? "invited" : "user"}-${account.id}`}
+      draggable
+      onDragStart={(event) => startDrag(event, account.id)}
+      onDragEnd={() => { setDragging(null); setDragTarget(null); }}
+      onClick={() => {
+        setSelectedUserId((current) => current === account.id ? null : account.id);
+        setCollapsedGroups(new Set());
+      }}
+      role="button"
+      tabIndex="0"
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          setSelectedUserId((current) => current === account.id ? null : account.id);
+          setCollapsedGroups(new Set());
+        }
+      }}
+      title="Drag this traveler, or tap to select and then tap a trip"
+    >
+      <div className="managed-identity">
+        <i>{account.name[0].toUpperCase()}</i>
+        <div>
+          <b>{account.name}</b>
+          <small>{invited ? "Invited traveler" : account.role === "admin" ? "Administrator" : `Owner of ${account.owned_group_count} trip${Number(account.owned_group_count) === 1 ? "" : "s"}`}</small>
+        </div>
+      </div>
+      {overview.isAdmin && <div className="managed-actions">
+        <button type="button" className="reset-password-btn" onClick={(event) => {
+          event.stopPropagation();
+          setResetAccount(account);
+          setResetForm({ password: "", confirm: "" });
+        }}>Reset password</button>
+        {account.id !== currentUser.id ? (
+          <button type="button" className="delete-user" disabled={busy === `delete-${account.id}`} onClick={(event) => { event.stopPropagation(); remove(account); }} aria-label={`Delete ${account.name}`} title={`Delete ${account.name}`}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg>
+          </button>
+        ) : <span className="delete-placeholder" aria-hidden="true" />}
+      </div>}
+    </article>
+  );
 
   return (
     <div
@@ -1745,7 +1950,7 @@ function AdminManager({ currentUser, onClose }) {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="10+ characters"
+                placeholder="Letters + numbers"
                 required
               />
             </label>
@@ -1760,19 +1965,21 @@ function AdminManager({ currentUser, onClose }) {
               <strong>{overview.groups.length}</strong>
             </div>
             <p className="drag-help">
-              Drag a traveler from the user list into a trip to add access. This does not remove their other trips.
+              {selectedUserId
+                ? `${overview.users.find((account) => account.id === selectedUserId)?.name || "Traveler"} selected — tap a trip below to add access.`
+                : "Drag a traveler into a trip, or tap a traveler and then tap the destination trip."}
             </p>
             <div className={`owner-group-sections ${dragging ? "is-dragging" : ""}`}>
               {groupsByOwner.map((ownerSection) => (
                 <section className="owner-group-section" key={ownerSection.ownerId}>
-                  <div className="owner-group-heading">
+                  <button type="button" className="owner-group-heading" onClick={() => toggleSet(setCollapsedGroups, ownerSection.ownerId)} aria-expanded={!collapsedGroups.has(ownerSection.ownerId)}>
                     <div>
                       <i>{ownerSection.ownerName[0].toUpperCase()}</i>
                       <span><small>GROUP OWNER</small><strong>{ownerSection.ownerName}</strong></span>
                     </div>
-                    <b>{ownerSection.groups.length} {ownerSection.groups.length === 1 ? "trip" : "trips"}</b>
-                  </div>
-                  <div className="group-board">
+                    <b>{ownerSection.groups.length} {ownerSection.groups.length === 1 ? "trip" : "trips"} <em>{collapsedGroups.has(ownerSection.ownerId) ? "+" : "−"}</em></b>
+                  </button>
+                  {!collapsedGroups.has(ownerSection.ownerId) && <div className="group-board">
                     {ownerSection.groups.map((group) => (
                       <div
                         className={`group-dropzone ${dragTarget === group.id ? "drag-over" : ""}`}
@@ -1783,10 +1990,22 @@ function AdminManager({ currentUser, onClose }) {
                           setDragTarget(group.id);
                         }}
                         onDrop={(event) => dropIntoGroup(event, group.id)}
+                        onClick={() => tapIntoGroup(group.id)}
                       >
                         <div className="dropzone-heading">
                           <div><b>{group.name}</b><small>PRIVATE TRIP GROUP</small></div>
-                          <span>{group.members.length}</span>
+                          <div className="group-heading-actions">
+                            <span>{group.members.length}</span>
+                            <button
+                              type="button"
+                              disabled={busy === `delete-group-${group.id}`}
+                              onClick={(event) => { event.stopPropagation(); removeGroup(group); }}
+                              aria-label={`Delete ${group.name}`}
+                              title="Delete trip"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-1 11H8L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z" /></svg>
+                            </button>
+                          </div>
                         </div>
                         <div className="member-drag-list">
                           {group.members.map((member) => (
@@ -1806,7 +2025,7 @@ function AdminManager({ currentUser, onClose }) {
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </div>}
                 </section>
               ))}
             </div>
@@ -1822,73 +2041,62 @@ function AdminManager({ currentUser, onClose }) {
             )}
           </section>
           <section className="managed-users">
-            <div className="manager-section-title">
-              <span>{overview.isAdmin ? "ALL USERS" : "YOUR GROUP TRAVELERS"}</span>
-              <strong>{overview.users.length}</strong>
-            </div>
-            {overview.users.map((account) => (
-              <article
-                className={`managed-user draggable-user ${overview.isAdmin ? "" : "owner-user-row"}`}
-                key={account.id}
-                draggable
-                onDragStart={(event) => startDrag(event, account.id)}
-                onDragEnd={() => { setDragging(null); setDragTarget(null); }}
-                title="Drag this traveler into a trip"
-              >
-                <div className="managed-identity">
-                  <i>{account.name[0].toUpperCase()}</i>
-                  <div>
-                    <b>{account.name}</b>
-                    <small>
-                      {account.role === "admin"
-                        ? "Administrator"
-                        : Number(account.owned_group_count) > 0
-                          ? `Owner of ${account.owned_group_count} trip${Number(account.owned_group_count) === 1 ? "" : "s"}`
-                          : `Invited to ${account.group_count} trip${Number(account.group_count) === 1 ? "" : "s"}`}
-                    </small>
+            {overview.isAdmin ? <>
+              <div className="manager-section-title">
+                <span>ALL USERS</span>
+                <strong>{overview.users.length}</strong>
+              </div>
+              <div className="user-hierarchy">
+              {userHierarchy.map((section) => section.owner && (
+                <section className="owner-user-section" key={`owner-users-${section.ownerId}`}>
+                  <div className="owner-user-line">
+                    {userRow(section.owner)}
+                    {section.invited.length > 0 && <button type="button" className="collapse-users-btn" onClick={() => toggleSet(setCollapsedUsers, section.ownerId)} aria-label={`${collapsedUsers.has(section.ownerId) ? "Show" : "Hide"} invited users`}>
+                      {collapsedUsers.has(section.ownerId) ? "+" : "−"}
+                    </button>}
                   </div>
-                </div>
-                {overview.isAdmin && <div className="managed-actions">
-                  <div className="reset-box">
-                    <input
-                      type="password"
-                      value={resets[account.id] || ""}
-                      onChange={(event) =>
-                        setResets((current) => ({
-                          ...current,
-                          [account.id]: event.target.value,
-                        }))
-                      }
-                      placeholder="New strong password"
-                    />
-                    <button
-                      disabled={busy === `reset-${account.id}`}
-                      onClick={() => reset(account)}
-                    >
-                      Reset
-                    </button>
-                  </div>
-                  {account.id !== currentUser.id && (
-                    <button
-                      className="delete-user"
-                      disabled={busy === `delete-${account.id}`}
-                      onClick={() => remove(account)}
-                    >
-                      Delete user
-                    </button>
-                  )}
-                  {account.id === currentUser.id && (
-                    <span className="delete-placeholder" aria-hidden="true" />
-                  )}
+                  {!collapsedUsers.has(section.ownerId) && section.invited.length > 0 && <div className="invited-users">
+                    {section.invited.map((account) => userRow(account, true))}
+                  </div>}
+                </section>
+              ))}
+              {ungroupedUsers.map((account) => userRow(account))}
+              </div>
+            </> : <div className="owner-directory">
+              <section>
+                <button type="button" className="manager-section-title directory-toggle" onClick={() => toggleSet(setCollapsedUsers, "all-owners")} aria-expanded={!collapsedUsers.has("all-owners")}>
+                  <span>ALL OWNERS</span><strong>{ownerAccounts.length}</strong>
+                </button>
+                {!collapsedUsers.has("all-owners") && <div className="user-hierarchy">
+                  {ownerAccounts.map((account) => userRow(account))}
                 </div>}
-              </article>
-            ))}
+              </section>
+              <section>
+                <button type="button" className="manager-section-title directory-toggle" onClick={() => toggleSet(setCollapsedUsers, "own-invited")} aria-expanded={!collapsedUsers.has("own-invited")}>
+                  <span>YOUR INVITED USERS</span><strong>{ownInvitedUsers.length}</strong>
+                </button>
+                {!collapsedUsers.has("own-invited") && <div className="user-hierarchy invited-users-list">
+                  {ownInvitedUsers.length ? ownInvitedUsers.map((account) => userRow(account, true)) : <p className="empty-directory">No invited users yet.</p>}
+                </div>}
+              </section>
+            </div>}
           </section>
           <p className="manager-footnote">
             ★ Owners manage only their own trips. Adding a traveler preserves all of their existing trip access.
           </p>
         </div>
       </section>
+      {resetAccount && <div className="reset-modal-overlay" onMouseDown={(event) => event.target === event.currentTarget && setResetAccount(null)}>
+        <form className="reset-modal" onSubmit={reset} role="dialog" aria-modal="true" aria-labelledby="reset-title">
+          <button type="button" className="reset-modal-close" onClick={() => setResetAccount(null)} aria-label="Close">×</button>
+          <small>ACCOUNT SECURITY</small>
+          <h3 id="reset-title">Reset {resetAccount.name}&apos;s password</h3>
+          <p>Use at least 6 characters with a letter and a number.</p>
+          <label>NEW PASSWORD<input type="password" autoComplete="new-password" value={resetForm.password} onChange={(event) => setResetForm((current) => ({ ...current, password: event.target.value }))} required /></label>
+          <label>CONFIRM PASSWORD<input type="password" autoComplete="new-password" value={resetForm.confirm} onChange={(event) => setResetForm((current) => ({ ...current, confirm: event.target.value }))} required /></label>
+          <button className="reset-modal-submit" disabled={busy === `reset-${resetAccount.id}`}>{busy === `reset-${resetAccount.id}` ? "Updating…" : "Reset password"}</button>
+        </form>
+      </div>}
     </div>
   );
 }

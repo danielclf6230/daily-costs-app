@@ -60,7 +60,7 @@ export default function UserPage() {
           <p>Confirm your identity with your current password, then choose a new secure password.</p>
           <form onSubmit={submit} className="password-form">
             <label>CURRENT PASSWORD<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>
-            <label>NEW PASSWORD<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><small>10+ characters with uppercase, lowercase, and a number.</small></label>
+            <label>NEW PASSWORD<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><small>At least 6 characters with a letter and a number.</small></label>
             <label>CONFIRM NEW PASSWORD<input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></label>
             {error && <div className="profile-alert error">{error}</div>}
             {message && <div className="profile-alert success">✓ {message}</div>}

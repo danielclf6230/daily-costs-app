@@ -59,6 +59,10 @@ export function createTrip(trip) {
   return request("/api/trips", { method: "POST", body: trip });
 }
 
+export function deleteTrip(tripId) {
+  return request(`/api/trips/${tripId}`, { method: "DELETE" });
+}
+
 export function selectActiveTrip(tripId) {
   return request("/api/trips/active", { method: "PATCH", body: { tripId } });
 }

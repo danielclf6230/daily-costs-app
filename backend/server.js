@@ -49,14 +49,26 @@ const time = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
   .or(z.literal(""));
+const password = z
+  .string()
+  .min(6)
+  .max(100)
+  .regex(/[A-Za-z]/)
+  .regex(/[0-9]/);
 const TripSchema = z.object({
   tripName: z.string().max(120),
   country: z.string().max(80).default(""),
   city: z.string().max(80).default(""),
   startDate: date,
   endDate: date,
+  shoppingBudget: z.number().min(0).max(1000000000).optional().default(0),
   shopping: z
-    .array(z.object({ id, text: z.string().max(240), checked: z.boolean() }))
+    .array(z.object({
+      id,
+      text: z.string().max(240),
+      checked: z.boolean(),
+      price: z.number().min(0).max(1000000000).optional().default(0),
+    }))
     .max(500),
   days: z
     .array(
@@ -120,20 +132,14 @@ app.post("/api/auth/register", authLimiter, async (req, res) => {
   const parsed = z
     .object({
       name: z.string().trim().min(2).max(80),
-      password: z
-        .string()
-        .min(10)
-        .max(100)
-        .regex(/[a-z]/)
-        .regex(/[A-Z]/)
-        .regex(/[0-9]/),
+      password,
       inviteCode: z.string().trim().min(8).max(32),
     })
     .safeParse(req.body);
   if (!parsed.success)
     return res.status(400).json({
       message:
-        "Use your invite code and a 10+ character password with upper/lowercase letters and a number.",
+        "Use your invite code and a password with at least 6 characters, including a letter and a number.",
     });
 
   const connection = await pool.getConnection();
@@ -189,13 +195,7 @@ app.patch("/api/auth/password", authLimiter, requireAuth, async (req, res) => {
   const parsed = z
     .object({
       currentPassword: z.string().min(1).max(100),
-      newPassword: z
-        .string()
-        .min(10)
-        .max(100)
-        .regex(/[a-z]/)
-        .regex(/[A-Z]/)
-        .regex(/[0-9]/),
+      newPassword: password,
       confirmPassword: z.string().min(1).max(100),
     })
     .refine((data) => data.newPassword === data.confirmPassword, {
@@ -207,7 +207,7 @@ app.patch("/api/auth/password", authLimiter, requireAuth, async (req, res) => {
     return res.status(400).json({
       ok: false,
       error:
-        "Use a matching 10+ character password with uppercase, lowercase, and a number.",
+        "Use matching passwords with at least 6 characters, including a letter and a number.",
     });
   }
 
@@ -337,20 +337,14 @@ app.post("/api/admin/users", async (req, res) => {
   const parsed = z
     .object({
       name: z.string().trim().min(2).max(80),
-      password: z
-        .string()
-        .min(10)
-        .max(100)
-        .regex(/[a-z]/)
-        .regex(/[A-Z]/)
-        .regex(/[0-9]/),
+      password,
     })
     .safeParse(req.body);
   if (!parsed.success)
     return res.status(400).json({
       ok: false,
       error:
-        "Password must have 10+ characters, upper/lowercase letters, and a number.",
+        "Password must have at least 6 characters, including a letter and a number.",
     });
   const connection = await pool.getConnection();
   try {
@@ -366,6 +360,7 @@ app.post("/api/admin/users", async (req, res) => {
       city: "",
       startDate: "",
       endDate: "",
+      shoppingBudget: 0,
       shopping: [],
       days: [],
       travelers: [],
@@ -396,20 +391,14 @@ app.post("/api/admin/users", async (req, res) => {
 app.patch("/api/admin/users/:id/password", async (req, res) => {
   const parsed = z
     .object({
-      password: z
-        .string()
-        .min(10)
-        .max(100)
-        .regex(/[a-z]/)
-        .regex(/[A-Z]/)
-        .regex(/[0-9]/),
+      password,
     })
     .safeParse(req.body);
   const userId = Number(req.params.id);
   if (!parsed.success || !Number.isSafeInteger(userId) || userId < 1)
     return res
       .status(400)
-      .json({ ok: false, error: "Use a strong password with 10+ characters." });
+      .json({ ok: false, error: "Use at least 6 characters with a letter and a number." });
   const hash = await bcrypt.hash(parsed.data.password, 12);
   const [result] = await pool.execute(
     "UPDATE trip_users SET password = ? WHERE id = ?",
@@ -447,17 +436,9 @@ app.delete("/api/admin/users/:id", async (req, res) => {
       await connection.rollback();
       return res.status(404).json({ ok: false, error: "User not found." });
     }
-    const [ownedTrips] = await connection.execute(
-      "SELECT trip_id FROM trip_tools_members WHERE user_id = ? AND role = 'owner' LIMIT 1 FOR UPDATE",
-      [userId],
-    );
-    if (ownedTrips.length) {
-      await connection.rollback();
-      return res.status(400).json({
-        ok: false,
-        error: "This traveler still owns one or more trips. Remove or transfer those trips first.",
-      });
-    }
+    // Owned trips cannot remain without their owner. Deleting them first also
+    // removes their memberships, invites, and active-trip records via cascades.
+    await connection.execute("DELETE FROM trip_tools_trips WHERE owner_user_id = ?", [userId]);
     await connection.execute("DELETE FROM trip_users WHERE id = ?", [userId]);
     await connection.commit();
     res.json({ ok: true });
@@ -519,7 +500,10 @@ app.get("/api/manage/overview", async (req, res) => {
         [users] = await pool.query(
           `SELECT u.id, u.name, u.role, u.created_at,
             COUNT(m.trip_id) AS group_count,
-            SUM(m.role = 'owner') AS owned_group_count
+            COALESCE(SUM(m.role = 'owner'), 0) AS owned_group_count,
+            (SELECT i.created_by FROM trip_tools_invites i
+             WHERE i.used_by = u.id AND i.used_at IS NOT NULL
+             ORDER BY i.used_at DESC, i.id DESC LIMIT 1) AS invited_by_user_id
            FROM trip_users u LEFT JOIN trip_tools_members m ON m.user_id = u.id
            GROUP BY u.id ORDER BY u.created_at, u.id`,
         );
@@ -527,11 +511,20 @@ app.get("/api/manage/overview", async (req, res) => {
         [users] = await pool.query(
           `SELECT u.id, u.name, u.role, u.created_at,
             COUNT(DISTINCT all_memberships.trip_id) AS group_count,
-            SUM(all_memberships.role = 'owner') AS owned_group_count
+            COALESCE(SUM(all_memberships.role = 'owner'), 0) AS owned_group_count,
+            (SELECT i.created_by FROM trip_tools_invites i
+             WHERE i.used_by = u.id AND i.used_at IS NOT NULL
+             ORDER BY i.used_at DESC, i.id DESC LIMIT 1) AS invited_by_user_id
            FROM trip_users u
-           JOIN trip_tools_members visible_membership ON visible_membership.user_id = u.id
            LEFT JOIN trip_tools_members all_memberships ON all_memberships.user_id = u.id
-           WHERE visible_membership.trip_id IN (${placeholders})
+           WHERE EXISTS (
+             SELECT 1 FROM trip_tools_members owner_membership
+             WHERE owner_membership.user_id = u.id AND owner_membership.role = 'owner'
+           ) OR EXISTS (
+             SELECT 1 FROM trip_tools_members visible_membership
+             WHERE visible_membership.user_id = u.id
+               AND visible_membership.trip_id IN (${placeholders})
+           )
            GROUP BY u.id ORDER BY u.created_at, u.id`,
           groupIds,
         );
@@ -569,13 +562,14 @@ app.post("/api/manage/groups/:tripId/users/:userId", async (req, res) => {
     if (manager.role !== "admin") {
       const [visible] = await pool.execute(
         `SELECT 1 FROM trip_tools_members candidate
-         JOIN trip_tools_members owned
+         LEFT JOIN trip_tools_members owned
            ON owned.trip_id = candidate.trip_id AND owned.user_id = ? AND owned.role = 'owner'
-         WHERE candidate.user_id = ? LIMIT 1`,
+         WHERE candidate.user_id = ? AND (candidate.role = 'owner' OR owned.user_id IS NOT NULL)
+         LIMIT 1`,
         [req.user.id, userId],
       );
       if (!visible.length)
-        return res.status(403).json({ ok: false, error: "That traveler is not in one of your groups." });
+        return res.status(403).json({ ok: false, error: "You can add another owner or one of your invited travelers." });
     }
     const [users] = await pool.execute("SELECT id FROM trip_users WHERE id = ?", [userId]);
     if (!users.length)
@@ -723,6 +717,40 @@ app.get("/api/trips", async (req, res) => {
   }
 });
 
+app.delete("/api/trips/:tripId", async (req, res) => {
+  const tripId = Number(req.params.tripId);
+  if (!Number.isSafeInteger(tripId) || tripId < 1)
+    return res.status(400).json({ ok: false, error: "Choose a valid trip." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [trips] = await connection.execute(
+      `SELECT t.id, t.owner_user_id, u.role
+       FROM trip_tools_trips t
+       JOIN trip_users u ON u.id = ?
+       WHERE t.id = ? FOR UPDATE`,
+      [req.user.id, tripId],
+    );
+    if (!trips.length) {
+      await connection.rollback();
+      return res.status(404).json({ ok: false, error: "Trip not found." });
+    }
+    const trip = trips[0];
+    if (trip.role !== "admin" && Number(trip.owner_user_id) !== Number(req.user.id)) {
+      await connection.rollback();
+      return res.status(403).json({ ok: false, error: "Only the trip owner or an administrator can delete this trip." });
+    }
+    await connection.execute("DELETE FROM trip_tools_trips WHERE id = ?", [tripId]);
+    await connection.commit();
+    res.json({ ok: true });
+  } catch (error) {
+    await connection.rollback();
+    res.status(500).json({ ok: false, error: "Could not delete the trip." });
+  } finally {
+    connection.release();
+  }
+});
+
 app.patch("/api/trips/active", async (req, res) => {
   const parsed = z
     .object({ tripId: z.number().int().positive().nullable() })
@@ -772,6 +800,7 @@ app.post("/api/trips", async (req, res) => {
       city: values.city,
       startDate: values.startDate,
       endDate: values.endDate,
+      shoppingBudget: 0,
       shopping: [],
       days: tripDays(values.startDate, values.endDate),
       travelers: [],
