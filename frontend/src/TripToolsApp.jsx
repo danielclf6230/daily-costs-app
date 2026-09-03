@@ -9,6 +9,7 @@ import {
   deleteAdminUser,
   deleteTrip,
   loadAdminOverview,
+  loadExchangeRate,
   loadTrip,
   loadTrips,
   removeUserFromGroup,
@@ -102,6 +103,57 @@ const SHOPPING_CURRENCIES = [
   ["THB", "Thai Baht"],
   ["PHP", "Philippine Peso"],
 ];
+
+function CurrencyPicker({ value, onChange, label = "CURRENCY" }) {
+  const pickerRef = useRef(null);
+  const selectedName = SHOPPING_CURRENCIES.find(([code]) => code === value)?.[1];
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event) => {
+      const picker = pickerRef.current;
+      if (picker && !picker.contains(event.target)) picker.open = false;
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, []);
+
+  return (
+    <div className="currency-select">
+      <span>{label}</span>
+      <details
+        ref={pickerRef}
+        className="currency-picker"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            pickerRef.current.open = false;
+            pickerRef.current.querySelector("summary")?.focus();
+          }
+        }}
+      >
+        <summary aria-label={`${label}: ${value}, ${selectedName}`}>{value}</summary>
+        <div className="currency-menu" aria-label={`${label.toLowerCase()} currency`}>
+          {SHOPPING_CURRENCIES.map(([code, name]) => (
+            <button
+              type="button"
+              aria-pressed={code === value}
+              className={code === value ? "selected" : ""}
+              value={code}
+              key={code}
+              onClick={() => {
+                onChange(code);
+                pickerRef.current.open = false;
+              }}
+            >
+              <strong>{code}</strong>
+              <small>{name}</small>
+              {code === value && <span aria-hidden="true">✓</span>}
+            </button>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
 const emptyStop = () => ({
   id: makeId(),
   place: "",
@@ -194,7 +246,7 @@ function resizeAvatar(file) {
 }
 
 const Icon = ({ name }) => {
-  const icons = { shop: "SHOP", plan: "PLAN", wheel: "PICK", note: "NOTE" };
+  const icons = { shop: "SHOP", plan: "PLAN", exchange: "FX", wheel: "PICK", note: "NOTE" };
   return (
     <span className="tab-kanji" aria-hidden="true">
       {icons[name]}
@@ -628,6 +680,7 @@ export default function TripToolsApp() {
         {[
           ["shopping", "shop", "Shopping"],
           ["schedule", "plan", "Schedule"],
+          ["exchange", "exchange", "Exchange"],
           ["wheel", "wheel", "Who pays?"],
           ["notes", "note", "Notes"],
         ].map(([id, icon, label]) => (
@@ -668,6 +721,7 @@ export default function TripToolsApp() {
             ended={tripEnded}
           />
         )}
+        {tab === "exchange" && <Exchange trip={trip} />}
         {tab === "wheel" && (
           <Wheel
             trip={trip}
@@ -1134,6 +1188,125 @@ function SectionTitle({ eyebrow, title, text, action }) {
   );
 }
 
+function Exchange({ trip }) {
+  const initialCurrency = SHOPPING_CURRENCIES.some(
+    ([code]) => code === trip.shoppingCurrency,
+  )
+    ? trip.shoppingCurrency
+    : "JPY";
+  const [amount, setAmount] = useState("1570");
+  const [from, setFrom] = useState(initialCurrency);
+  const [to, setTo] = useState(initialCurrency === "CAD" ? "USD" : "CAD");
+  const [rate, setRate] = useState(null);
+  const [rateDate, setRateDate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    loadExchangeRate(from, to)
+      .then((data) => {
+        if (!active) return;
+        setRate(Number(data.rate));
+        setRateDate(data.date || "");
+      })
+      .catch((requestError) => {
+        if (!active) return;
+        setRate(null);
+        setRateDate("");
+        setError(requestError.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [from, to, refreshKey]);
+
+  const numericAmount = Number(amount);
+  const converted = Number.isFinite(numericAmount) && rate
+    ? numericAmount * rate
+    : null;
+  const formattedResult = converted === null
+    ? "—"
+    : new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: to,
+        maximumFractionDigits: 4,
+      }).format(converted);
+  const displayedRate = rate
+    ? new Intl.NumberFormat(undefined, { maximumSignificantDigits: 8 }).format(rate)
+    : "—";
+  const reverseRate = rate
+    ? new Intl.NumberFormat(undefined, { maximumSignificantDigits: 8 }).format(1 / rate)
+    : "—";
+
+  return (
+    <>
+      <SectionTitle
+        eyebrow="LATEST REFERENCE RATE · CURRENCY"
+        title="Exchange"
+        text="Convert travel money using the latest published exchange rate."
+      />
+      <div className="exchange-card">
+        <div className="exchange-inputs">
+          <label className="exchange-amount">
+            <span>AMOUNT</span>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              inputMode="decimal"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              aria-label={`Amount in ${from}`}
+            />
+          </label>
+          <CurrencyPicker value={from} onChange={setFrom} label="FROM" />
+          <button
+            type="button"
+            className="exchange-swap"
+            onClick={() => {
+              setFrom(to);
+              setTo(from);
+            }}
+            aria-label="Swap currencies"
+            title="Swap currencies"
+          >
+            ⇄
+          </button>
+          <CurrencyPicker value={to} onChange={setTo} label="TO" />
+        </div>
+
+        <div className={`exchange-result ${loading ? "loading" : ""}`} aria-live="polite">
+          <span>{amount || "0"} {from}</span>
+          <strong>{loading ? "Updating…" : formattedResult}</strong>
+          {!loading && !error && (
+            <small>1 {from} = {displayedRate} {to} · 1 {to} = {reverseRate} {from}</small>
+          )}
+          {error && <small className="exchange-error">{error}</small>}
+        </div>
+
+        <div className="exchange-meta">
+          <span>
+            {rateDate ? `Rate published ${prettyDate(rateDate, { year: true })}` : "Latest rate unavailable"}
+          </span>
+          <button type="button" onClick={() => setRefreshKey((key) => key + 1)} disabled={loading}>
+            Refresh rate
+          </button>
+        </div>
+        <p className="exchange-disclaimer">
+          Indicative reference rate from <a href="https://frankfurter.dev/" target="_blank" rel="noreferrer">Frankfurter</a>. Your bank or card provider may use a different rate and add fees.
+        </p>
+      </div>
+    </>
+  );
+}
+
 function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
   const packed = trip.shopping.filter((item) => item.checked).length;
   const currency = SHOPPING_CURRENCIES.some(([code]) => code === trip.shoppingCurrency)
@@ -1175,21 +1348,13 @@ function Shopping({ trip, setTrip, text, setText, add, editing, setEditing }) {
         text="Plan purchases together and keep the trip budget visible."
       />
       <div className="shopping-budget">
-        <label className="currency-select">
-          <span>CURRENCY</span>
-          <select
-            value={currency}
-            onChange={(event) => setTrip((current) => ({
-              ...current,
-              shoppingCurrency: event.target.value,
-            }))}
-            aria-label="Shopping list currency"
-          >
-            {SHOPPING_CURRENCIES.map(([code, name]) => (
-              <option value={code} key={code}>{code} — {name}</option>
-            ))}
-          </select>
-        </label>
+        <CurrencyPicker
+          value={currency}
+          onChange={(code) => setTrip((current) => ({
+            ...current,
+            shoppingCurrency: code,
+          }))}
+        />
         <label>
           <span>TOTAL BUDGET</span>
           <span className="money-input"><b title={currency}>{currencySymbol}</b><input
@@ -1412,6 +1577,8 @@ function Schedule({
 }
 
 function DayEditor({ day, index, updateDay }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const editorId = `day-editor-${day.id}`;
   const addStop = () =>
     updateDay(day.id, (value) => ({
       ...value,
@@ -1435,17 +1602,31 @@ function DayEditor({ day, index, updateDay }) {
         <div className="day-badge">
           DAY <strong>{index + 1}</strong>
         </div>
-        <div>
+        <div className="day-head-copy">
           <h3>{prettyDate(day.date, { weekday: true })}</h3>
           <span>
             {day.items.length} {day.items.length === 1 ? "place" : "places"}
           </span>
         </div>
-        {day.completed && <b className="complete-pill">COMPLETED</b>}
+        <div className="day-head-actions">
+          {day.completed && <b className="complete-pill">COMPLETED</b>}
+          <button
+            type="button"
+            className="day-collapse"
+            onClick={() => setIsCollapsed((collapsed) => !collapsed)}
+            aria-expanded={!isCollapsed}
+            aria-controls={editorId}
+            aria-label={isCollapsed ? "Expand day" : "Minimize day"}
+            title={isCollapsed ? "Expand day" : "Minimize day"}
+          >
+            <span aria-hidden="true">{isCollapsed ? "+" : "−"}</span>
+          </button>
+        </div>
       </div>
-      <div className="stop-editor-list">
-        {day.items.map((item, itemIndex) => (
-          <div className="stop-editor" key={item.id}>
+      <div id={editorId} hidden={isCollapsed}>
+        <div className="stop-editor-list">
+          {day.items.map((item, itemIndex) => (
+            <div className="stop-editor" key={item.id}>
             <span className="stop-number">
               {String(itemIndex + 1).padStart(2, "0")}
             </span>
@@ -1475,27 +1656,30 @@ function DayEditor({ day, index, updateDay }) {
                 placeholder="1 hr"
               />
             </label>
-            <label className="note-field">
-              NOTE
+            <label className="address-field">
+              ADDRESS
               <input
                 value={item.note}
                 onChange={(e) => updateStop(item.id, { note: e.target.value })}
-                placeholder="Optional details"
+                placeholder="Street address or map link"
               />
             </label>
             <button
+              type="button"
               className="remove-stop"
               onClick={() => removeStop(item.id)}
-              aria-label="Remove stop"
+              aria-label={`Remove place ${itemIndex + 1}`}
+              title="Remove place"
             >
-              ×
+              <span aria-hidden="true">×</span>
             </button>
-          </div>
-        ))}
+            </div>
+          ))}
+        </div>
+        <button type="button" className="add-stop" onClick={addStop}>
+          ＋ Add another place
+        </button>
       </div>
-      <button className="add-stop" onClick={addStop}>
-        ＋ Add another place
-      </button>
     </article>
   );
 }

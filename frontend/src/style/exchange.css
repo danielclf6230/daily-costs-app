@@ -1,0 +1,43 @@
+.main-tabs{grid-template-columns:repeat(5,1fr)}
+
+.exchange-card{width:min(780px,100%);margin:0 auto;border:1px solid var(--line);border-left:4px solid var(--red);background:#fffdf8;box-shadow:10px 10px 0 rgba(23,63,72,.06)}
+.exchange-inputs{display:grid;grid-template-columns:minmax(170px,1.4fr) minmax(120px,.75fr) 42px minmax(120px,.75fr);align-items:end;gap:18px;padding:27px 30px;border-bottom:1px solid var(--line)}
+.exchange-inputs>label>span,.exchange-inputs>.currency-select>span{display:block;margin-bottom:7px;color:#6f7c78;font-size:8px;font-weight:700;letter-spacing:.14em}
+.exchange-amount input{display:block;width:100%;height:39px;border:0;border-bottom:1px solid #9f9384;background:transparent;color:var(--ink);outline:0;font:700 25px 'Noto Serif JP'}
+.exchange-amount input:focus{border-color:var(--red)}
+.exchange-inputs .currency-picker summary{height:39px;font-size:16px}
+.exchange-inputs .currency-select:last-child .currency-menu{right:0;left:auto}
+.exchange-swap{display:grid;place-items:center;width:42px;height:39px;padding:0;border:1px solid #bfc8c4;border-radius:0;background:transparent;color:var(--ink);font-size:20px}
+.exchange-swap:hover{background:var(--ink);color:#fff}
+.exchange-result{display:grid;place-items:center;min-height:190px;padding:34px 25px;text-align:center}
+.exchange-result>span{color:#7e8985;font-size:12px;font-weight:700;letter-spacing:.08em}
+.exchange-result>strong{display:block;margin:8px 0;color:var(--red);font:700 clamp(35px,6vw,58px) 'Noto Serif JP'}
+.exchange-result>small{color:#687672;font-size:11px}
+.exchange-result.loading{opacity:.65}
+.exchange-result .exchange-error{color:var(--red)}
+.exchange-meta{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:13px 20px;border-top:1px solid var(--line);background:#f1eadf;color:#7d8581;font-size:10px}
+.exchange-meta button{border:0;background:transparent;color:var(--ink);font-size:10px;font-weight:700}
+.exchange-meta button:disabled{opacity:.5;cursor:wait}
+.exchange-disclaimer{margin:0;padding:13px 20px;color:#92958e;font-size:9px;line-height:1.5}
+.exchange-disclaimer a{color:var(--ink)}
+
+@media(max-width:760px){
+  .main-tabs button{gap:1px}.main-tabs button span:last-child{font-size:9px}
+  .exchange-card{box-shadow:none}
+  .exchange-inputs{grid-template-columns:minmax(0,1fr) 38px minmax(0,1fr);gap:12px;padding:20px 15px}
+  .exchange-amount{grid-column:1/-1}
+  .exchange-swap{grid-column:2;width:38px}
+  .exchange-inputs>.currency-select:nth-of-type(1){grid-column:1}
+  .exchange-inputs>.currency-select:last-child{grid-column:3}
+  .exchange-result{min-height:165px;padding:28px 14px}
+  .exchange-result>strong{font-size:clamp(31px,11vw,45px)}
+  .exchange-meta{align-items:flex-start;flex-direction:column;gap:7px}
+}
+
+@media(max-width:390px){
+  .main-tabs button span:last-child{font-size:8px}
+  .tab-kanji{font-size:14px}
+  .exchange-inputs{grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);gap:8px;padding-inline:11px}
+  .exchange-swap{width:34px}
+  .currency-menu{width:205px}
+}

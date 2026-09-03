@@ -50,6 +50,11 @@ export function saveTrip(tripId, trip) {
   return request(`/api/trip?tripId=${tripId}`, { method: "PUT", body: trip });
 }
 
+export function loadExchangeRate(from, to) {
+  const query = new URLSearchParams({ from, to });
+  return request(`/api/exchange-rate?${query}`);
+}
+
 export async function loadTrips() {
   const data = await request("/api/trips");
   return { trips: data.trips, canCreate: Boolean(data.canCreate), canManage: Boolean(data.canManage), activeTripId: data.activeTripId ?? null };

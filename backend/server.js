@@ -55,6 +55,12 @@ const password = z
   .max(100)
   .regex(/[A-Za-z]/)
   .regex(/[0-9]/);
+const exchangeCurrency = z.enum([
+  "CAD", "USD", "EUR", "GBP", "JPY", "CNY", "AUD", "NZD", "CHF",
+  "HKD", "SGD", "KRW", "INR", "MXN", "BRL", "AED", "THB", "PHP",
+]);
+const exchangeRateCache = new Map();
+const EXCHANGE_CACHE_MS = 30 * 60 * 1000;
 const TripSchema = z.object({
   tripName: z.string().max(120),
   country: z.string().max(80).default(""),
@@ -91,7 +97,7 @@ const TripSchema = z.object({
               checked: z.boolean(),
             }),
           )
-          .max(100),
+          .max(500),
       }),
     )
     .max(60),
@@ -278,6 +284,66 @@ app.patch("/api/auth/avatar", requireAuth, async (req, res) => {
     res.json({ ok: true, avatarUrl: parsed.data.avatarUrl });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get("/api/exchange-rate", requireAuth, async (req, res) => {
+  const parsed = z
+    .object({ from: exchangeCurrency, to: exchangeCurrency })
+    .safeParse(req.query);
+  if (!parsed.success)
+    return res.status(400).json({
+      ok: false,
+      error: "Choose two supported currencies.",
+    });
+
+  const { from, to } = parsed.data;
+  if (from === to) {
+    return res.json({
+      ok: true,
+      base: from,
+      quote: to,
+      rate: 1,
+      date: new Date().toISOString().slice(0, 10),
+      source: "Identity rate",
+    });
+  }
+
+  const cacheKey = `${from}/${to}`;
+  const cached = exchangeRateCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < EXCHANGE_CACHE_MS)
+    return res.json({ ok: true, ...cached.data, cached: true });
+
+  try {
+    const response = await fetch(
+      `https://api.frankfurter.dev/v2/rate/${from}/${to}`,
+      {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!response.ok)
+      throw new Error(`Rate provider returned ${response.status}.`);
+    const payload = await response.json();
+    const rate = Number(payload.rate);
+    if (!Number.isFinite(rate) || rate <= 0)
+      throw new Error("Rate provider returned an invalid rate.");
+
+    const data = {
+      base: from,
+      quote: to,
+      rate,
+      date: payload.date,
+      source: "Frankfurter",
+    };
+    exchangeRateCache.set(cacheKey, { data, fetchedAt: Date.now() });
+    res.json({ ok: true, ...data, cached: false });
+  } catch (error) {
+    console.error("Exchange rate request failed:", error);
+    res.status(502).json({
+      ok: false,
+      error: "The latest exchange rate is temporarily unavailable. Please try again.",
+    });
   }
 });
 

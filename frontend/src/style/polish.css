@@ -4,12 +4,12 @@
 .sun-disc{z-index:0;opacity:.78}
 .countdown-card{position:relative;z-index:3;flex:0 0 180px}
 
-.stop-editor{grid-template-columns:36px minmax(190px,2fr) minmax(110px,.75fr) minmax(120px,.85fr) minmax(165px,1.35fr) 28px;gap:13px;min-height:70px;padding:10px 18px}
+.stop-editor{grid-template-columns:36px minmax(190px,2fr) minmax(110px,.75fr) minmax(120px,.85fr) minmax(165px,1.35fr) 26px;gap:13px;min-height:70px;padding:10px 18px}
 .stop-editor label{font-size:9px;font-weight:700;letter-spacing:.1em;color:#5b6a67}
 .stop-editor input{margin-top:3px;padding:5px 2px;font-size:13px!important;line-height:1.25;color:#172f32;font-weight:500}
 .stop-editor input::placeholder{color:#9b9e98}
 .stop-number{font-size:12px;color:#927f68}
-.remove-stop{font-size:18px}
+.remove-stop{position:static;align-self:start;justify-self:end;display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;background:transparent;color:#a15a50;font-size:18px;line-height:1}.remove-stop:hover{background:transparent;color:var(--red)}
 .add-stop{font-size:12px;padding:7px;margin:10px 18px}
 .day-head{min-height:74px;padding:10px 16px}.day-head>div>span{font-size:11px}.day-head h3{font-size:17px}.day-badge{width:48px;height:48px;font-size:8px}.day-badge strong{font-size:20px}.complete-pill{font-size:9px}
 
@@ -86,4 +86,10 @@
 .wheel-result-list i{width:7px;height:7px;border-radius:50%}
 .wheel-result-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wheel-result-list strong{display:grid;place-items:center;min-width:23px;height:23px;border-radius:50%;background:#eee5d9;color:var(--ink);font-size:10px}
+
+/* Compact, app-styled currency picker. */
+.currency-picker{position:relative}.currency-picker summary{display:flex;align-items:center;justify-content:space-between;min-height:31px;border-bottom:1px solid #9f9384;color:var(--ink);font:700 14px 'Noto Serif JP';cursor:pointer;list-style:none}.currency-picker summary::-webkit-details-marker{display:none}.currency-picker summary:after{content:'⌄';font:700 15px 'DM Sans';transition:transform .15s}.currency-picker[open] summary:after{transform:rotate(180deg)}.currency-menu{position:absolute;z-index:30;left:-8px;top:calc(100% + 7px);width:230px;max-height:290px;overflow:auto;padding:6px;background:#fffdf8;border:1px solid #cbbdab;box-shadow:0 14px 32px rgba(30,44,42,.2)}.currency-menu button{display:grid;grid-template-columns:42px 1fr 16px;align-items:center;width:100%;min-height:39px;padding:7px 9px;border:0;background:transparent;color:var(--ink);text-align:left}.currency-menu button:hover,.currency-menu button:focus-visible{background:#eee6da;outline:0}.currency-menu button.selected{background:#e3efec}.currency-menu strong{font:700 12px 'DM Sans'}.currency-menu small{overflow:hidden;color:#6f7c78;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.currency-menu button>span{color:#507464;font-weight:700}
+
+/* Day-card controls. */
+.day-head-copy{min-width:0}.day-head-actions{display:flex;align-items:center;gap:12px;margin-left:auto}.complete-pill{margin-left:0}.day-head-copy>span{color:#94938a;font-size:11px}.day-collapse{display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;padding:0;border:1px solid #bfc8c4;border-radius:0;background:transparent;color:var(--ink);font-size:16px;line-height:1}.day-collapse:hover{border-color:var(--ink);background:var(--ink);color:#fff}
 @media(max-width:480px){.wheel-result-list{grid-template-columns:1fr}}
